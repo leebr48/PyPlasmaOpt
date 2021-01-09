@@ -20,6 +20,7 @@ def example3_get_objective():
     parser.add_argument("--arclength", type=float, default=0.)
     parser.add_argument("--min-dist", type=float, default=0.04)
     parser.add_argument("--dist-weight", type=float, default=0.)
+    parser.add_argument("--freezeCoils", action='store_true', default=False)
     args, _ = parser.parse_known_args()
 
     keys = list(args.__dict__.keys())
@@ -67,12 +68,11 @@ def example3_get_objective():
     # iota_target = 0.103;
     # eta_bar = 0.998578113525166 if args.at_optimum else 1.0
 
-
     obj = NearAxisQuasiSymmetryObjective(
         stellarator, ma, iota_target, eta_bar=eta_bar,
         coil_length_target=coil_length_target, magnetic_axis_length_target=magnetic_axis_length_target,
         curvature_weight=args.curvature, torsion_weight=args.torsion,
         tikhonov_weight=args.tikhonov, arclength_weight=args.arclength, sobolev_weight=args.sobolev,
         minimum_distance=args.min_dist, distance_weight=args.dist_weight,
-        mode='deterministic', outdir=outdir)
+        mode='deterministic', outdir=outdir, freezeCoils=args.freezeCoils)
     return obj, args

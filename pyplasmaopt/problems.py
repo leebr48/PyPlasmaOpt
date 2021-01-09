@@ -11,14 +11,14 @@ import numpy as np
 import os
 
 class NearAxisQuasiSymmetryObjective():
-
     def __init__(self, stellarator, ma, iota_target, eta_bar=-2.25,
                  coil_length_target=None, magnetic_axis_length_target=None,
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1
+                 outdir="output/", seed=1, freezeCoils=False
                  ):
+        self.freezeCoils = freezeCoils
         self.stellarator = stellarator
         self.seed = seed
         self.ma = ma
@@ -73,7 +73,7 @@ class NearAxisQuasiSymmetryObjective():
         # import sys; sys.exit()
         self.sampler = sampler
 
-        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(stellarator, sampler, ninsamples, qsf, self.seed)
+        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(stellarator, sampler, ninsamples, qsf, self.seed) 
         self.stochastic_qs_objective_out_of_sample = None
 
         if mode in ["deterministic", "stochastic"]:
@@ -109,7 +109,8 @@ class NearAxisQuasiSymmetryObjective():
         self.ma.set_dofs(x_ma)
         self.biotsavart.set_points(self.ma.gamma)
         self.stellarator.set_currents(self.current_fak * x_current)
-        self.stellarator.set_dofs(x_coil)
+        if not self.freezeCoils:
+            self.stellarator.set_dofs(x_coil) 
 
         self.biotsavart.clear_cached_properties()
         self.qsf.clear_cached_properties()

@@ -69,7 +69,6 @@ if False:
 maxiter = 5000
 memory = 200
 
-
 def J_scipy(x):
     obj.update(x)
     res = obj.res

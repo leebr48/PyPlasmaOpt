@@ -37,6 +37,12 @@ and then depending on your platform run
 or 
     make pip-linux
 
+Finally, you may need to run the following command to be able to "import pyplasmaopt" in scripts outside of this directory as the "make" command above does not seem to always function properly: 
+
+    pip -e install . 
+
 To check the installation
 
     pytest tests/
+
+You can also run scripts in the "examples" folder to be certain that all the package dependencies are installed. 
