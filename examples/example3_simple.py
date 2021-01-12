@@ -66,7 +66,8 @@ if False:
     taylor_test(obj, x, order=6)
     import sys; sys.exit()
 
-maxiter = 5000
+#maxiter = 5000
+maxiter = 3 #for testing purposes
 memory = 200
 
 def J_scipy(x):
@@ -88,6 +89,31 @@ obj.stellarator.savetotxt(outdir)
 matlabcoils = [c.tomatlabformat() for c in obj.stellarator._base_coils]
 np.savetxt(os.path.join(obj.outdir, 'coilsmatlab.txt'), np.hstack(matlabcoils))
 np.savetxt(os.path.join(obj.outdir, 'currents.txt'), obj.stellarator._base_currents)
+
+
+coilcount = 0
+for coil in obj.stellarator.coils:
+    try:
+        a=coil.coefficients
+        coilcount +=1
+    except:
+        pass
+
+save = obj.stellarator.coils[0].coefficients
+for i in range(1,coilcount):
+    save = np.append(save,obj.stellarator.coils[i].coefficients,axis=0)
+np.savetxt(os.path.join(obj.outdir, 'coilCoeffs.txt'), save)
+
+save = []
+for item in obj.ma.coefficients:
+    save.append(item.tolist())
+with open(os.path.join(obj.outdir, 'maCoeffs.txt'), "w") as f:
+    for line in save:
+        for ind,item in enumerate(line):
+            f.write(str(item))
+            if ind!=len(line)-1:
+                f.write(' ')
+        f.write('\n')
 
 # def approx_H(x):
 #     n = x.size

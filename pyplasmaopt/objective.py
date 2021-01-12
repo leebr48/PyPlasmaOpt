@@ -1,7 +1,6 @@
 import numpy as np
 from math import pi
 
-
 class BiotSavartQuasiSymmetricFieldDifference():
 
     def __init__(self, quasi_symmetric_field, biotsavart):
