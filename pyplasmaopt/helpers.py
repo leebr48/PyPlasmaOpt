@@ -84,18 +84,50 @@ def get_flat_data(Nt=4, nfp=3, ppp=10):
     ma.update()
     return (coils, ma)
 
-def reload_ncsx():
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_coils=3):
+    "Data for coils, currents, and the magnetic axis is pulled from sourcedir. \
+            There is only need to input *unique* coils - the others will be created using CoilCollection as usual. \
+            The function parameters have the same meaning as in get_ncsx_data. \
+            Note that Nt_coils, Nt_ma, ppp, and nfp MUST be the same as in the original stellarator."
     
+    coil_data = np.loadtxt(os.path.join(sourcedir,'coilCoeffs.txt'))
 
+    repeat_factor = len(coil_data)/num_coils #How many consecutive lines of coil_data belong to each coil.  
 
+    shaped_coil_data = [] #List. Indices: shaped_coil_data[unique coil index][coefficients sublist index][coefficient index]
+    for vecind,vec in enumerate(coil_data):
+        if vecind%repeat_factor==0:
+            intermed = []
+            intermed.append(vec.tolist())
+        else:
+            intermed.append(vec.tolist())
+        if len(intermed)==repeat_factor:
+            shaped_coil_data.append(intermed)
 
+    coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)] #Create blank coils object of the proper class.  
+    for coilind in range(num_coils):
+        for sublistind in range(len(coils[coilind].coefficients)):
+            for coeffind in range(len(coils[coilind].coefficients[sublistind])):
+                coils[coilind].coefficients[sublistind][coeffind] = shaped_coil_data[coilind][sublistind][coeffind]
+        coils[coilind].update()
 
+    ma_raw = []
+    with open(os.path.join(sourcedir,'maCoeffs.txt'),'r') as f:
+        for line in f:
+            linelist = [float(coeff) for coeff in line.strip().split()]
+            ma_raw.append(linelist)
 
+    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
+    ma = StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
 
+    for ind1 in range(len(ma_raw)):
+        for ind2 in range(len(ma_raw[ind1])):
+                ma.coefficients[ind1][ind2] = ma_raw[ind1][ind2]
+    ma.update() #The magnetic axis should now be ready to go. 
 
+    currents = np.loadtxt(os.path.join(sourcedir,'currents.txt')).tolist() #Only the currents for the three unique coils need to be imported. 
 
-
+    return (coils, ma, currents) #Same outputs as get_ncsx_data
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10):
     dir_path = os.path.dirname(os.path.realpath(__file__))

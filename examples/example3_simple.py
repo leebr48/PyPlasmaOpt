@@ -10,7 +10,6 @@ obj.plot('tmp.png')
 
 outdir = obj.outdir
 
-
 def taylor_test(obj, x, order=6, export=False):
     np.random.seed(1)
     h = np.random.rand(*(x.shape))
@@ -53,8 +52,6 @@ def taylor_test(obj, x, order=6, export=False):
     obj.update(x)
     info("-----")
 
-
-
 x = obj.x0
 obj.update(x)
 obj.callback(x)
@@ -66,8 +63,8 @@ if False:
     taylor_test(obj, x, order=6)
     import sys; sys.exit()
 
-#maxiter = 5000
-maxiter = 3 #for testing purposes
+maxiter = 5000 #for real
+#maxiter = 3 #for testing purposes
 memory = 200
 
 def J_scipy(x):
@@ -90,7 +87,6 @@ matlabcoils = [c.tomatlabformat() for c in obj.stellarator._base_coils]
 np.savetxt(os.path.join(obj.outdir, 'coilsmatlab.txt'), np.hstack(matlabcoils))
 np.savetxt(os.path.join(obj.outdir, 'currents.txt'), obj.stellarator._base_currents)
 
-
 coilcount = 0
 for coil in obj.stellarator.coils:
     try:
@@ -102,7 +98,7 @@ for coil in obj.stellarator.coils:
 save = obj.stellarator.coils[0].coefficients
 for i in range(1,coilcount):
     save = np.append(save,obj.stellarator.coils[i].coefficients,axis=0)
-np.savetxt(os.path.join(obj.outdir, 'coilCoeffs.txt'), save)
+np.savetxt(os.path.join(obj.outdir, 'coilCoeffs.txt'), save,fmt='%.20f')
 
 save = []
 for item in obj.ma.coefficients:
@@ -114,37 +110,6 @@ with open(os.path.join(obj.outdir, 'maCoeffs.txt'), "w") as f:
             if ind!=len(line)-1:
                 f.write(' ')
         f.write('\n')
-
-# def approx_H(x):
-#     n = x.size
-#     H = np.zeros((n, n))
-#     x0 = x
-#     eps = 1e-4
-#     for i in range(n):
-#         x = x0.copy()
-#         x[i] += eps
-#         d1 = J_scipy(x)[1]
-#         x[i] -= 2*eps
-#         d0 = J_scipy(x)[1]
-#         H[i, :] = (d1-d0)/(2*eps)
-#     H = 0.5 * (H+H.T)
-#     return H
-# for i in range(20):
-#     H = approx_H(x)
-#     f, d = J_scipy(x)
-#     print(f, np.linalg.norm(d))
-#     D, E = eigh(H)
-#     D = np.abs(D)
-#     # D = np.maximum(D, 0.)
-#     evals_sorted = np.sort(D)
-#     D[D < evals_sorted[20]] = 0.
-#     D += 1e-1
-#     s = E @ np.diag(1./D) @ E.T @ d
-#     alpha = 0.3
-#     x -= alpha * s
-
-
-# import IPython; IPython.embed()
 
 np.savetxt(outdir + "xmin.txt", xmin)
 np.savetxt(outdir + "Jvals.txt", obj.Jvals)
