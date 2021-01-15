@@ -57,8 +57,13 @@ class NearAxisQuasiSymmetryObjective():
         self.current_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + len(stellarator.get_currents()))
         self.coil_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + len(stellarator.get_dofs()))
         if mode in ["deterministic", "stochastic"]:
-            self.x0 = np.concatenate(([qsf.eta_bar], self.ma.get_dofs(), self.stellarator.get_currents()/self.current_fak, self.stellarator.get_dofs()))
+            if not self.freezeCoils: 
+                self.x0 = np.concatenate(([qsf.eta_bar], self.ma.get_dofs(), self.stellarator.get_currents()/self.current_fak, self.stellarator.get_dofs()))
+            else:
+                self.x0 = np.concatenate(([qsf.eta_bar], self.ma.get_dofs(), self.stellarator.get_currents()/self.current_fak))
         elif mode[0:4] == "cvar":
+            if self.freezeCoils:
+                raise NotImplementedError
             self.x0 = np.concatenate(([qsf.eta_bar], self.ma.get_dofs(), self.stellarator.get_currents()/self.current_fak, self.stellarator.get_dofs(), [0.]))
         else:
             raise NotImplementedError
@@ -102,12 +107,13 @@ class NearAxisQuasiSymmetryObjective():
         x_etabar = x[0]
         x_ma = x[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]]
         x_current = x[self.current_dof_idxs[0]:self.current_dof_idxs[1]]
-        x_coil = x[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
-        self.t = x[-1]
+        if not self.freezeCoils:
+            x_coil = x[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
+            self.t = x[-1]
 
         self.qsf.eta_bar = x_etabar
         self.ma.set_dofs(x_ma)
-        self.biotsavart.set_points(self.ma.gamma)
+        self.biotsavart.set_points(self.ma.gamma) #Should be okay to leave alone with frozen coils. 
         self.stellarator.set_currents(self.current_fak * x_current)
         if not self.freezeCoils:
             self.stellarator.set_dofs(x_coil) 
@@ -134,14 +140,16 @@ class NearAxisQuasiSymmetryObjective():
         self.dresetabar  = np.zeros(1)
         self.dresma      = np.zeros(self.ma_dof_idxs[1]-self.ma_dof_idxs[0])
         self.drescurrent = np.zeros(self.current_dof_idxs[1]-self.current_dof_idxs[0])
-        self.drescoil    = np.zeros(self.coil_dof_idxs[1]-self.coil_dof_idxs[0])
+        if not self.freezeCoils:
+            self.drescoil    = np.zeros(self.coil_dof_idxs[1]-self.coil_dof_idxs[0])
 
 
         """ Objective values """
-
-        self.res2      = 0.5 * sum( (1/l)**2 * (J2.J() - l)**2 for (J2, l) in zip(J_coil_lengths, self.coil_length_targets))
-        self.drescoil += self.stellarator.reduce_coefficient_derivatives([
-            (1/l)**2 * (J_coil_lengths[i].J()-l) * J_coil_lengths[i].dJ_by_dcoefficients() for (i, l) in zip(list(range(len(J_coil_lengths))), self.coil_length_targets)])
+        
+        if not self.freezeCoils:
+            self.res2      = 0.5 * sum( (1/l)**2 * (J2.J() - l)**2 for (J2, l) in zip(J_coil_lengths, self.coil_length_targets))
+            self.drescoil += self.stellarator.reduce_coefficient_derivatives([
+                (1/l)**2 * (J_coil_lengths[i].J()-l) * J_coil_lengths[i].dJ_by_dcoefficients() for (i, l) in zip(list(range(len(J_coil_lengths))), self.coil_length_targets)])
 
         self.res3    = 0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length.J() - magnetic_axis_length_target)**2
         self.dresma += (1/magnetic_axis_length_target)**2 * (J_axis_length.J()-magnetic_axis_length_target) * J_axis_length.dJ_by_dcoefficients()
@@ -150,35 +158,36 @@ class NearAxisQuasiSymmetryObjective():
         self.dresetabar += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_detabar[:,0]
         self.dresma     += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_dcoeffs[:, 0]
 
-        if curvature_weight > 1e-15:
+        if curvature_weight > 1e-15 and not self.freezeCoils:
             self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)
             self.drescoil += self.curvature_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_curvatures])
-        else:
-            self.res5 = 0
-        if torsion_weight > 1e-15:
+        #else:
+        #    self.res5 = 0
+        if torsion_weight > 1e-15 and not self.freezeCoils:
             self.res6      = sum(torsion_weight * J.J() for J in J_coil_torsions)
             self.drescoil += self.torsion_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
-        else:
-            self.res6 = 0
+        #else:
+        #    self.res6 = 0
 
         if self.sobolev_weight > 1e-15:
             self.res7 = sum(self.sobolev_weight * J.J() for J in self.J_sobolev_weights)
-            self.drescoil += self.sobolev_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_sobolev_weights[:-1]])
             self.dresma += self.sobolev_weight * self.J_sobolev_weights[-1].dJ_by_dcoefficients()
+            if not self.freezeCoils:
+                self.drescoil += self.sobolev_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_sobolev_weights[:-1]])
         else:
             self.res7 = 0
 
-        if self.arclength_weight > 1e-15:
+        if self.arclength_weight > 1e-15 and not self.freezeCoils:
             self.res8 = sum(self.arclength_weight * J.J() for J in self.J_arclength_weights)
             self.drescoil += self.arclength_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
-        else:
-            self.res8 = 0
+        #else:
+        #    self.res8 = 0
 
-        if self.distance_weight > 1e-15:
+        if self.distance_weight > 1e-15 and not self.freezeCoils:
             self.res9 = self.distance_weight * self.J_distance.J()
             self.drescoil += self.distance_weight * self.stellarator.reduce_coefficient_derivatives(self.J_distance.dJ_by_dcoefficients())
-        else:
-            self.res9 = 0
+        #else:
+        #    self.res9 = 0
 
         if self.tikhonov_weight > 1e-15:
             self.res_tikhonov_weight = self.tikhonov_weight * np.sum((x-self.x0)**2)
@@ -186,7 +195,8 @@ class NearAxisQuasiSymmetryObjective():
             self.dresetabar += dres_tikhonov_weight[0:1]
             self.dresma += dres_tikhonov_weight[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]]
             self.drescurrent += dres_tikhonov_weight[self.current_dof_idxs[0]:self.current_dof_idxs[1]]
-            self.drescoil += dres_tikhonov_weight[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
+            if not self.freezeCoils:
+                self.drescoil += dres_tikhonov_weight[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
         else:
             self.res_tikhonov_weight = 0
 
@@ -199,8 +209,9 @@ class NearAxisQuasiSymmetryObjective():
         self.res1_det        = 0.5 * J_BSvsQS.J_L2() + 0.5 * J_BSvsQS.J_H1()
         self.dresetabar_det  = 0.5 * J_BSvsQS.dJ_L2_by_detabar() + 0.5 * J_BSvsQS.dJ_H1_by_detabar()
         self.dresma_det      = 0.5 * J_BSvsQS.dJ_L2_by_dmagneticaxiscoefficients() + 0.5 * J_BSvsQS.dJ_H1_by_dmagneticaxiscoefficients()
-        self.drescoil_det    = 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_L2_by_dcoilcoefficients()) \
-            + 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_H1_by_dcoilcoefficients())
+        if not self.freezeCoils:
+            self.drescoil_det    = 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_L2_by_dcoilcoefficients()) \
+                + 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_H1_by_dcoilcoefficients())
         self.drescurrent_det = 0.5 * self.current_fak * (
             self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_L2_by_dcoilcurrents()) + self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_H1_by_dcoilcurrents())
         )
@@ -208,9 +219,12 @@ class NearAxisQuasiSymmetryObjective():
             self.res1         = self.res1_det
             self.dresetabar  += self.dresetabar_det
             self.dresma      += self.dresma_det
-            self.drescoil    += self.drescoil_det
             self.drescurrent += self.drescurrent_det
+            if not self.freezeCoils:
+                self.drescoil    += self.drescoil_det
         else:
+            if self.freezeCoils:
+                raise NotImplementedError
             self.dresetabar_det  += self.dresetabar
             self.dresma_det      += self.dresma
             self.drescoil_det    += self.drescoil
@@ -224,6 +238,8 @@ class NearAxisQuasiSymmetryObjective():
                 self.dresetabar  += sum(self.stochastic_qs_objective.dJ_by_detabar_samples())/n
                 self.dresma      += sum(self.stochastic_qs_objective.dJ_by_dmagneticaxiscoefficients_samples())/n
             elif self.mode == "cvar":
+                if self.freezeCoils:
+                    raise NotImplementedError
                 t = x[-1]
                 self.res1         = self.cvar.J(t, Jsamples)
                 self.res1_det     = self.res1
@@ -234,17 +250,28 @@ class NearAxisQuasiSymmetryObjective():
                 self.drescvart   = self.cvar.dJ_dt(t, Jsamples)
             else:
                 raise NotImplementedError
-
-        self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
+        
+        if not self.freezeCoils: 
+            self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
+        else:
+            self.Jvals_individual.append([self.res1, self.res3, self.res4, self.res7, self.res_tikhonov_weight])
         self.res = sum(self.Jvals_individual[-1])
         self.perturbed_vals = [self.res - self.res1 + r for r in self.QSvsBS_perturbed[-1]]
 
         if self.mode in ["deterministic", "stochastic"]:
-            self.dres = np.concatenate((
-                self.dresetabar, self.dresma,
-                self.drescurrent, self.drescoil
-            ))
+            if not self.freezeCoils:
+                self.dres = np.concatenate((
+                    self.dresetabar, self.dresma,
+                    self.drescurrent, self.drescoil
+                ))
+            else:
+                self.dres = np.concatenate((
+                    self.dresetabar, self.dresma,
+                    self.drescurrent
+                ))
         elif self.mode == "cvar":
+            if self.freezeCoils:
+                raise NotImplementedError
             self.dres = np.concatenate((
                 self.dresetabar, self.dresma,
                 self.drescurrent, self.drescoil,
@@ -272,9 +299,14 @@ class NearAxisQuasiSymmetryObjective():
         assert np.allclose(self.x, x)
         self.Jvals.append(self.res)
         norm = np.linalg.norm
-        self.dJvals.append((
-            norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent), norm(self.drescoil)
-        ))
+        if not self.freezeCoils:
+            self.dJvals.append((
+                norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent), norm(self.drescoil)
+            ))
+        else:
+            self.dJvals.append((
+                norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent)
+            ))
         if self.ninsamples > 0:
             self.Jvals_quantiles.append((np.quantile(self.perturbed_vals, 0.1), np.mean(self.perturbed_vals), np.quantile(self.perturbed_vals, 0.9)))
         self.Jvals_no_noise.append(self.res - self.res1 + 0.5 * (self.J_BSvsQS.J_L2() + self.J_BSvsQS.J_H1()))
@@ -286,13 +318,19 @@ class NearAxisQuasiSymmetryObjective():
         info(f"Iteration {iteration}")
         norm = np.linalg.norm
         info(f"Objective value:         {self.res:.6e}")
-        info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
+        if not self.freezeCoils:
+            info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
+        else:
+            info(f"Objective values:        {self.res1:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res7:.6e}, {self.res_tikhonov_weight:.6e}")
         if self.ninsamples > 0:
             info(f"VaR(.1), Mean, VaR(.9):  {np.quantile(self.perturbed_vals, 0.1):.6e}, {np.mean(self.perturbed_vals):.6e}, {np.quantile(self.perturbed_vals, 0.9):.6e}")
             cvar90 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.9)))
             cvar95 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.95)))
             info(f"CVaR(.9), CVaR(.95), Max:{cvar90:.6e}, {cvar95:.6e}, {max(self.perturbed_vals):.6e}")
-        info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}, {norm(self.drescoil):.6e}")
+        if not self.freezeCoils:
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}, {norm(self.drescoil):.6e}")
+        else:
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}")
 
         max_curvature  = max(np.max(c.kappa) for c in self.stellarator._base_coils)
         mean_curvature = np.mean([np.mean(c.kappa) for c in self.stellarator._base_coils])

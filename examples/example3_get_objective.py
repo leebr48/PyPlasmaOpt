@@ -48,6 +48,7 @@ def example3_get_objective():
     # print(f"lr {args.lr}, tau {args.tau}, c {args.c}, lam {args.lam}")
     # os.system('tail -n 1 voyager-output/' + outdir + 'out_of_sample_means.txt')
     # import sys; sys.exit()
+
     if args.reload:
         if os.path.isabs(args.reload):
             sourcedir = args.reload
@@ -60,11 +61,11 @@ def example3_get_objective():
     
     nfp = 3
     if args.reload:
-        (coils, ma, currents) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=nfp,num_coils=3) 
+        (coils, ma, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=nfp,num_coils=3) 
     else:
         (coils, ma, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp)
+        eta_bar = 0.685
     stellarator = CoilCollection(coils, currents, nfp, True)
-    eta_bar = 0.685
     iota_target = args.iota_target
     coil_length_target = None
     magnetic_axis_length_target = None

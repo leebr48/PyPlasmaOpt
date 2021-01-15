@@ -63,7 +63,7 @@ if False:
     taylor_test(obj, x, order=6)
     import sys; sys.exit()
 
-maxiter = 5000 #for real
+maxiter = 10000 #for real
 #maxiter = 3 #for testing purposes
 memory = 200
 
@@ -73,7 +73,7 @@ def J_scipy(x):
     dres = obj.dres
     return res, dres
 
-res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20,
+res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-12,
                options={"maxiter": maxiter, "maxcor": memory},
                callback=obj.callback)
 
@@ -110,6 +110,9 @@ with open(os.path.join(obj.outdir, 'maCoeffs.txt'), "w") as f:
             if ind!=len(line)-1:
                 f.write(' ')
         f.write('\n')
+
+save = obj.qsf.eta_bar
+np.savetxt(os.path.join(obj.outdir, 'eta_bar.txt'), [save],fmt='%.20f')
 
 np.savetxt(outdir + "xmin.txt", xmin)
 np.savetxt(outdir + "Jvals.txt", obj.Jvals)
