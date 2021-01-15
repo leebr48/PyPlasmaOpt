@@ -161,13 +161,13 @@ class NearAxisQuasiSymmetryObjective():
         if curvature_weight > 1e-15 and not self.freezeCoils:
             self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)
             self.drescoil += self.curvature_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_curvatures])
-        #else:
-        #    self.res5 = 0
+        else:
+            self.res5 = 0
         if torsion_weight > 1e-15 and not self.freezeCoils:
             self.res6      = sum(torsion_weight * J.J() for J in J_coil_torsions)
             self.drescoil += self.torsion_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
-        #else:
-        #    self.res6 = 0
+        else:
+            self.res6 = 0
 
         if self.sobolev_weight > 1e-15:
             self.res7 = sum(self.sobolev_weight * J.J() for J in self.J_sobolev_weights)
@@ -180,14 +180,14 @@ class NearAxisQuasiSymmetryObjective():
         if self.arclength_weight > 1e-15 and not self.freezeCoils:
             self.res8 = sum(self.arclength_weight * J.J() for J in self.J_arclength_weights)
             self.drescoil += self.arclength_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
-        #else:
-        #    self.res8 = 0
+        else:
+            self.res8 = 0
 
         if self.distance_weight > 1e-15 and not self.freezeCoils:
             self.res9 = self.distance_weight * self.J_distance.J()
             self.drescoil += self.distance_weight * self.stellarator.reduce_coefficient_derivatives(self.J_distance.dJ_by_dcoefficients())
-        #else:
-        #    self.res9 = 0
+        else:
+            self.res9 = 0
 
         if self.tikhonov_weight > 1e-15:
             self.res_tikhonov_weight = self.tikhonov_weight * np.sum((x-self.x0)**2)
@@ -251,10 +251,7 @@ class NearAxisQuasiSymmetryObjective():
             else:
                 raise NotImplementedError
         
-        if not self.freezeCoils: 
-            self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
-        else:
-            self.Jvals_individual.append([self.res1, self.res3, self.res4, self.res7, self.res_tikhonov_weight])
+        self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
         self.res = sum(self.Jvals_individual[-1])
         self.perturbed_vals = [self.res - self.res1 + r for r in self.QSvsBS_perturbed[-1]]
 
@@ -318,10 +315,7 @@ class NearAxisQuasiSymmetryObjective():
         info(f"Iteration {iteration}")
         norm = np.linalg.norm
         info(f"Objective value:         {self.res:.6e}")
-        if not self.freezeCoils:
-            info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
-        else:
-            info(f"Objective values:        {self.res1:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res7:.6e}, {self.res_tikhonov_weight:.6e}")
+        info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
         if self.ninsamples > 0:
             info(f"VaR(.1), Mean, VaR(.9):  {np.quantile(self.perturbed_vals, 0.1):.6e}, {np.mean(self.perturbed_vals):.6e}, {np.quantile(self.perturbed_vals, 0.9):.6e}")
             cvar90 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.9)))
