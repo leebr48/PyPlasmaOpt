@@ -16,9 +16,10 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False
+                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1
                  ):
         self.freezeCoils = freezeCoils
+        self.iota_weight = iota_weight
         self.stellarator = stellarator
         self.seed = seed
         self.ma = ma
@@ -155,9 +156,9 @@ class NearAxisQuasiSymmetryObjective():
         self.res3    = 0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length.J() - magnetic_axis_length_target)**2
         self.dresma += (1/magnetic_axis_length_target)**2 * (J_axis_length.J()-magnetic_axis_length_target) * J_axis_length.dJ_by_dcoefficients()
 
-        self.res4        = 0.5 * (1/iota_target**2) * (qsf.iota-iota_target)**2
-        self.dresetabar += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_detabar[:,0]
-        self.dresma     += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_dcoeffs[:, 0]
+        self.res4        = 0.5 * self.iota_weight * (1/iota_target**2) * (qsf.iota-iota_target)**2
+        self.dresetabar += self.iota_weight * (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_detabar[:,0]
+        self.dresma     += self.iota_weight * (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_dcoeffs[:, 0]
 
         if curvature_weight > 1e-15 and not self.freezeCoils:
             self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)

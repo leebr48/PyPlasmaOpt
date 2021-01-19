@@ -22,6 +22,7 @@ def example3_get_objective():
     parser.add_argument("--min-dist", type=float, default=0.04)
     parser.add_argument("--dist-weight", type=float, default=0.)
     parser.add_argument("--iota_target", type=float, default=-0.395938929522566)
+    parser.add_argument("--iota_weight", type=float, default=1.0)
     parser.add_argument("--freezeCoils", action='store_true', default=False)
     parser.add_argument("--reload", type=str, required=False)
     args, _ = parser.parse_known_args()
@@ -76,5 +77,5 @@ def example3_get_objective():
         curvature_weight=args.curvature, torsion_weight=args.torsion,
         tikhonov_weight=args.tikhonov, arclength_weight=args.arclength, sobolev_weight=args.sobolev,
         minimum_distance=args.min_dist, distance_weight=args.dist_weight,
-        mode='deterministic', outdir=outdir, freezeCoils=args.freezeCoils)
+        mode='deterministic', outdir=outdir, freezeCoils=args.freezeCoils, iota_weight=args.iota_weight)
     return obj, args
