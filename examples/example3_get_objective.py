@@ -5,7 +5,7 @@ import argparse
 import os 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
-
+#FIXME - add an nfp option here 
 def example3_get_objective():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--output", type=str, default="")
@@ -23,6 +23,7 @@ def example3_get_objective():
     parser.add_argument("--dist-weight", type=float, default=0.)
     parser.add_argument("--iota_target", type=float, default=-0.395938929522566)
     parser.add_argument("--iota_weight", type=float, default=1.0)
+    parser.add_argument("--quasisym_weight", type=float, default=1.0)
     parser.add_argument("--freezeCoils", action='store_true', default=False)
     parser.add_argument("--reload", type=str, required=False)
     args, _ = parser.parse_known_args()
@@ -46,9 +47,6 @@ def example3_get_objective():
         outdir += "_reload-True"
     outdir = outdir.replace(".", "p")
     outdir += "/"
-    # print(f"lr {args.lr}, tau {args.tau}, c {args.c}, lam {args.lam}")
-    # os.system('tail -n 1 voyager-output/' + outdir + 'out_of_sample_means.txt')
-    # import sys; sys.exit()
 
     if args.reload:
         if os.path.isabs(args.reload):
@@ -77,5 +75,6 @@ def example3_get_objective():
         curvature_weight=args.curvature, torsion_weight=args.torsion,
         tikhonov_weight=args.tikhonov, arclength_weight=args.arclength, sobolev_weight=args.sobolev,
         minimum_distance=args.min_dist, distance_weight=args.dist_weight,
-        mode='deterministic', outdir=outdir, freezeCoils=args.freezeCoils, iota_weight=args.iota_weight)
+        mode='deterministic', outdir=outdir, freezeCoils=args.freezeCoils, iota_weight=args.iota_weight,
+        quasisym_weight=args.quasisym_weight)
     return obj, args

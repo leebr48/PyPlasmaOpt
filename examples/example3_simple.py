@@ -87,6 +87,7 @@ matlabcoils = [c.tomatlabformat() for c in obj.stellarator._base_coils]
 np.savetxt(os.path.join(obj.outdir, 'coilsmatlab.txt'), np.hstack(matlabcoils))
 np.savetxt(os.path.join(obj.outdir, 'currents.txt'), obj.stellarator._base_currents)
 
+# FIXME - check to see if you can just use obj.stellarator._base_coils rather than all this crazy stuff. 
 coilcount = 0
 for coil in obj.stellarator.coils:
     try:
@@ -115,7 +116,7 @@ save = obj.qsf.eta_bar
 np.savetxt(os.path.join(obj.outdir, 'eta_bar.txt'), [save],fmt='%.20f')
 
 save = obj.qsf.iota
-np.savetxt(os.path.join(obj.outdir, 'iota.txt'), [save],fmt='%.20f')
+np.savetxt(os.path.join(obj.outdir, 'iota_ma.txt'), [save],fmt='%.20f')
 
 np.savetxt(outdir + "xmin.txt", xmin)
 np.savetxt(outdir + "Jvals.txt", obj.Jvals)
@@ -123,5 +124,5 @@ np.savetxt(outdir + "dJvals.txt", obj.dJvals)
 np.savetxt(outdir + "xiterates.txt", obj.xiterates)
 np.savetxt(outdir + "Jvals_individual.txt", obj.Jvals_individual)
 
-if False:
+if True:
     taylor_test(obj, xmin)

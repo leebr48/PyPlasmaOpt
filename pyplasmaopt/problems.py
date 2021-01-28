@@ -16,10 +16,11 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1
+                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1, quasisym_weight=1
                  ):
         self.freezeCoils = freezeCoils
         self.iota_weight = iota_weight
+        self.quasisym_weight = quasisym_weight
         self.stellarator = stellarator
         self.seed = seed
         self.ma = ma
@@ -208,15 +209,15 @@ class NearAxisQuasiSymmetryObjective():
         assert len(Jsamples) == self.ninsamples
         self.QSvsBS_perturbed.append(Jsamples)
 
-        self.res1_det        = 0.5 * J_BSvsQS.J_L2() + 0.5 * J_BSvsQS.J_H1()
-        self.dresetabar_det  = 0.5 * J_BSvsQS.dJ_L2_by_detabar() + 0.5 * J_BSvsQS.dJ_H1_by_detabar()
-        self.dresma_det      = 0.5 * J_BSvsQS.dJ_L2_by_dmagneticaxiscoefficients() + 0.5 * J_BSvsQS.dJ_H1_by_dmagneticaxiscoefficients()
-        if not self.freezeCoils:
-            self.drescoil_det    = 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_L2_by_dcoilcoefficients()) \
-                + 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_H1_by_dcoilcoefficients())
-        self.drescurrent_det = 0.5 * self.current_fak * (
+        self.res1_det        = 0.5 * self.quasisym_weight * (J_BSvsQS.J_L2() + J_BSvsQS.J_H1())
+        self.dresetabar_det  = 0.5 * self.quasisym_weight * (J_BSvsQS.dJ_L2_by_detabar() + J_BSvsQS.dJ_H1_by_detabar())
+        self.dresma_det      = 0.5 * self.quasisym_weight * (J_BSvsQS.dJ_L2_by_dmagneticaxiscoefficients() + J_BSvsQS.dJ_H1_by_dmagneticaxiscoefficients())
+        self.drescurrent_det = 0.5 * self.quasisym_weight * self.current_fak * (
             self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_L2_by_dcoilcurrents()) + self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_H1_by_dcoilcurrents())
         )
+        if not self.freezeCoils:
+            self.drescoil_det    = 0.5 * self.quasisym_weight * (self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_L2_by_dcoilcoefficients()) \
+                + self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_H1_by_dcoilcoefficients()))
         if self.mode == "deterministic":
             self.res1         = self.res1_det
             self.dresetabar  += self.dresetabar_det
