@@ -2,7 +2,7 @@ from pyplasmaopt import *
 from example3_get_objective import example3_get_objective
 from scipy.optimize import minimize
 import numpy as np
-import os
+import pathlib as pl
 
 obj, args = example3_get_objective()
 obj.plot('tmp.png')
@@ -13,7 +13,7 @@ outdir = obj.outdir
 def taylor_test(obj, x, order=6, export=False):
     np.random.seed(1)
     h = np.random.rand(*(x.shape))
-    np.savetxt(os.path.join(outdir, 'taylor_test_direction.txt'), h)
+    np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction.txt')), h)
     print(h)
     if export:
         obj.update(h)
@@ -64,7 +64,7 @@ if False:
     import sys; sys.exit()
 
 maxiter = 10000 #for real
-#maxiter = 1000 #for testing purposes
+#maxiter = 1 #for testing
 memory = 200
 
 def J_scipy(x):
@@ -84,27 +84,18 @@ J_distance = MinimumDistance(obj.stellarator.coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
 obj.stellarator.savetotxt(outdir)
 matlabcoils = [c.tomatlabformat() for c in obj.stellarator._base_coils]
-np.savetxt(os.path.join(obj.outdir, 'coilsmatlab.txt'), np.hstack(matlabcoils))
-np.savetxt(os.path.join(obj.outdir, 'currents.txt'), obj.stellarator._base_currents)
+np.savetxt(str(pl.Path(obj.outdir).joinpath('coilsmatlab.txt')), np.hstack(matlabcoils))
+np.savetxt(str(pl.Path(obj.outdir).joinpath('currents.txt')), obj.stellarator._base_currents)
 
-# FIXME - check to see if you can just use obj.stellarator._base_coils rather than all this crazy stuff. 
-coilcount = 0
-for coil in obj.stellarator.coils:
-    try:
-        a=coil.coefficients
-        coilcount +=1
-    except:
-        pass
-
-save = obj.stellarator.coils[0].coefficients
-for i in range(1,coilcount):
-    save = np.append(save,obj.stellarator.coils[i].coefficients,axis=0)
-np.savetxt(os.path.join(obj.outdir, 'coilCoeffs.txt'), save,fmt='%.20f')
+save = obj.stellarator._base_coils[0].coefficients
+for i in range(1,len(obj.stellarator._base_coils)):
+    save = np.append(save,obj.stellarator._base_coils[i].coefficients,axis=0)
+np.savetxt(str(pl.Path(obj.outdir).joinpath('coilCoeffs.txt')), save,fmt='%.20f')
 
 save = []
 for item in obj.ma.coefficients:
     save.append(item.tolist())
-with open(os.path.join(obj.outdir, 'maCoeffs.txt'), "w") as f:
+with open(str(pl.Path(obj.outdir).joinpath('maCoeffs.txt')), "w") as f:
     for line in save:
         for ind,item in enumerate(line):
             f.write(str(item))
@@ -113,10 +104,10 @@ with open(os.path.join(obj.outdir, 'maCoeffs.txt'), "w") as f:
         f.write('\n')
 
 save = obj.qsf.eta_bar
-np.savetxt(os.path.join(obj.outdir, 'eta_bar.txt'), [save],fmt='%.20f')
+np.savetxt(str(pl.Path(obj.outdir).joinpath('eta_bar.txt')), [save],fmt='%.20f')
 
 save = obj.qsf.iota
-np.savetxt(os.path.join(obj.outdir, 'iota_ma.txt'), [save],fmt='%.20f')
+np.savetxt(str(pl.Path(obj.outdir).joinpath('iota_ma.txt')), [save],fmt='%.20f')
 
 np.savetxt(outdir + "xmin.txt", xmin)
 np.savetxt(outdir + "Jvals.txt", obj.Jvals)

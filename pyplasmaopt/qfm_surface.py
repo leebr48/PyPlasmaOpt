@@ -684,3 +684,17 @@ class QfmSurface():
                 f.write('Zbs(%d,%d) = %0.12f\n' % (xn[im]/self.nfp,xm[im],Zbs[im]))
         
         return Rbc, Zbs, xn, xm
+    
+    def Cyl_to_Cart(self,R):
+        """
+        Computes X and Y from R.
+            
+        Inputs:
+            R (as from the position function)
+        Outputs;
+            X,Y
+        """
+        X = R * np.cos(self.phis)
+        Y = R * np.sin(self.phis)
+        
+        return X,Y

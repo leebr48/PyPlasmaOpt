@@ -1,5 +1,6 @@
 PyPlasmaOpt.egg-info/
 *.pyc
+.ipynb_checkpoints/
 .DS_Store
 *.eggs/
 var/
@@ -8,6 +9,7 @@ tmp/
 build/
 build-mac/
 build-linux/
+output-*/
 *.so
 *.png
 *.txt

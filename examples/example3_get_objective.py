@@ -3,14 +3,16 @@ import numpy as np
 from math import pi
 import argparse
 import os 
+import pathlib as pl
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
-#FIXME - add an nfp option here 
+
 def example3_get_objective():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--output", type=str, default="")
     parser.add_argument("--at-optimum", dest="at_optimum", default=False,
                         action="store_true")
+    parser.add_argument("--nfp", type=int, default=3)
     parser.add_argument("--ppp", type=int, default=20)
     parser.add_argument("--Nt_ma", type=int, default=4)
     parser.add_argument("--Nt_coils", type=int, default=4)
@@ -23,10 +25,10 @@ def example3_get_objective():
     parser.add_argument("--dist-weight", type=float, default=0.)
     parser.add_argument("--iota_target", type=float, default=-0.395938929522566)
     parser.add_argument("--iota_weight", type=float, default=1.0)
-    parser.add_argument("--quasisym_weight", type=float, default=1.0)
+    parser.add_argument("--quasisym_weight", type=float, default=100.0) #Might switch to 10 if 100 causes issues.
     parser.add_argument("--freezeCoils", action='store_true', default=False)
     parser.add_argument("--reload", type=str, required=False)
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
 
     keys = list(args.__dict__.keys())
     assert keys[0] == "output"
@@ -49,22 +51,18 @@ def example3_get_objective():
     outdir += "/"
 
     if args.reload:
-        if os.path.isabs(args.reload):
-            sourcedir = args.reload
-        else: 
-            sourcedir = os.path.join(os.path.dirname(__file__),args.reload)
+        sourcedir = str(pl.Path.cwd().joinpath(args.reload).resolve())
 
     os.makedirs(outdir, exist_ok=True)
     set_file_logger(outdir + "log.txt")
     info("Configuration: \n%s", args.__dict__)
     
-    nfp = 3
     if args.reload:
-        (coils, ma, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=nfp,num_coils=3) 
+        (coils, ma, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,num_coils=3) 
     else:
         (coils, ma, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp)
         eta_bar = 0.685
-    stellarator = CoilCollection(coils, currents, nfp, True)
+    stellarator = CoilCollection(coils, currents, args.nfp, True)
     iota_target = args.iota_target
     coil_length_target = None
     magnetic_axis_length_target = None
