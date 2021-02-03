@@ -1,12 +1,11 @@
 from pyplasmaopt import *
-from example3_get_objective import example3_get_objective
+from example3_get_objective_new import example3_get_objective
 from scipy.optimize import minimize
 import numpy as np
 import pathlib as pl
 
 obj, args = example3_get_objective()
 obj.plot('tmp.png')
-# import sys; sys.exit()
 
 outdir = obj.outdir
 
@@ -80,20 +79,20 @@ res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-15,
 info("%s" % res)
 xmin = res.x
 obj.save_to_matlab('matlab_optim')
-J_distance = MinimumDistance(obj.stellarator.coils, 0)
+J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
-obj.stellarator.savetotxt(outdir)
-matlabcoils = [c.tomatlabformat() for c in obj.stellarator._base_coils]
+obj.stellarator_group[0].savetotxt(outdir)
+matlabcoils = [c.tomatlabformat() for c in obj.stellarator_group[0]._base_coils]
 np.savetxt(str(pl.Path(obj.outdir).joinpath('coilsmatlab.txt')), np.hstack(matlabcoils))
-np.savetxt(str(pl.Path(obj.outdir).joinpath('currents.txt')), obj.stellarator._base_currents)
+np.savetxt(str(pl.Path(obj.outdir).joinpath('currents.txt')), obj.stellarator_group[0]._base_currents)
 
-save = obj.stellarator._base_coils[0].coefficients
-for i in range(1,len(obj.stellarator._base_coils)):
-    save = np.append(save,obj.stellarator._base_coils[i].coefficients,axis=0)
+save = obj.stellarator_group[0]._base_coils[0].coefficients
+for i in range(1,len(obj.stellarator_group[0]._base_coils)):
+    save = np.append(save,obj.stellarator_group[0]._base_coils[i].coefficients,axis=0)
 np.savetxt(str(pl.Path(obj.outdir).joinpath('coilCoeffs.txt')), save,fmt='%.20f')
 
 save = []
-for item in obj.ma.coefficients:
+for item in obj.ma_group[0].coefficients:
     save.append(item.tolist())
 with open(str(pl.Path(obj.outdir).joinpath('maCoeffs.txt')), "w") as f:
     for line in save:
@@ -103,10 +102,10 @@ with open(str(pl.Path(obj.outdir).joinpath('maCoeffs.txt')), "w") as f:
                 f.write(' ')
         f.write('\n')
 
-save = obj.qsf.eta_bar
+save = obj.qsf_group[0].eta_bar
 np.savetxt(str(pl.Path(obj.outdir).joinpath('eta_bar.txt')), [save],fmt='%.20f')
 
-save = obj.qsf.iota
+save = obj.qsf_group[0].iota
 np.savetxt(str(pl.Path(obj.outdir).joinpath('iota_ma.txt')), [save],fmt='%.20f')
 
 np.savetxt(outdir + "xmin.txt", xmin)

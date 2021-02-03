@@ -23,7 +23,7 @@ def example3_get_objective():
     parser.add_argument("--arclength", type=float, default=0.)
     parser.add_argument("--min-dist", type=float, default=0.04)
     parser.add_argument("--dist-weight", type=float, default=0.)
-    parser.add_argument("--iota_target", type=float, default=-0.395938929522566)
+    parser.add_argument("--iota_target", type=float, nargs='*', default=[-0.395938929522566])
     parser.add_argument("--iota_weight", type=float, default=1.0)
     parser.add_argument("--quasisym_weight", type=float, default=100.0) #Might switch to 10 if 100 causes issues.
     parser.add_argument("--freezeCoils", action='store_true', default=False)
@@ -49,21 +49,26 @@ def example3_get_objective():
         outdir += "_reload-True"
     outdir = outdir.replace(".", "p")
     outdir += "/"
-
-    if args.reload:
-        sourcedir = str(pl.Path.cwd().joinpath(args.reload).resolve())
-
+    
     os.makedirs(outdir, exist_ok=True)
     set_file_logger(outdir + "log.txt")
     info("Configuration: \n%s", args.__dict__)
     
+    if args.reload:
+        sourcedir = str(pl.Path.cwd().joinpath(args.reload).resolve())
+        with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
+            f.write('{:}\n'.format(sourcedir))
+
     if args.reload:
         (coils, ma, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,num_coils=3) 
     else:
         (coils, ma, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp)
         eta_bar = 0.685
     stellarator = CoilCollection(coils, currents, args.nfp, True)
-    iota_target = args.iota_target
+    if isinstance(args.iota_target,list):
+        iota_target = args.iota_target
+    else:
+        iota_target = [args.iota_target]
     coil_length_target = None
     magnetic_axis_length_target = None
 

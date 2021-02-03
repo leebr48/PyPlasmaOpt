@@ -129,7 +129,7 @@ def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_coils=3):
 
     eta_bar = np.loadtxt(os.path.join(sourcedir,'eta_bar.txt')) #Reload eta_bar from previous run as a starting point. 
 
-    return (coils, ma, currents, eta_bar) #Same outputs as get_ncsx_data
+    return (coils, ma, currents, eta_bar)
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10):
     dir_path = os.path.dirname(os.path.realpath(__file__))

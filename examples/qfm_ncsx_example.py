@@ -118,7 +118,7 @@ for sourceitem in args.sourcedir:
    
     print('Processing ',sourcedir)
 
-    with open(str(pl.Path(outdir).joinpath('source.txt')),'w') as f:
+    with open(str(pl.Path(outdir).joinpath('postprocess_source.txt')),'w') as f:
         f.write('{:}\n'.format(sourcedir))
 
     # Get the QFM surface
