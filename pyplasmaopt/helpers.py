@@ -84,7 +84,7 @@ def get_flat_data(Nt=4, nfp=3, ppp=10):
     ma.update()
     return (coils, ma)
 
-def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_coils=3):
+def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_stell=0,num_coils=3):
     "Data for coils, currents, and the magnetic axis is pulled from sourcedir. \
             There is only need to input *unique* coils - the others will be created using CoilCollection as usual. \
             The function parameters have the same meaning as in get_ncsx_data. \
@@ -112,7 +112,7 @@ def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_coils=3):
         coils[coilind].update()
 
     ma_raw = []
-    with open(os.path.join(sourcedir,'maCoeffs.txt'),'r') as f:
+    with open(os.path.join(sourcedir,'maCoeffs_%d.txt'%num_stell),'r') as f:
         for line in f:
             linelist = [float(coeff) for coeff in line.strip().split()]
             ma_raw.append(linelist)
@@ -125,9 +125,9 @@ def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_coils=3):
                 ma.coefficients[ind1][ind2] = ma_raw[ind1][ind2]
     ma.update() #The magnetic axis should now be ready to go. 
 
-    currents = np.loadtxt(os.path.join(sourcedir,'currents.txt')).tolist() #Only the currents for the three unique coils need to be imported. 
+    currents = np.loadtxt(os.path.join(sourcedir,'currents_%d.txt'%num_stell)).tolist() #Only the currents for the three unique coils need to be imported. 
 
-    eta_bar = np.loadtxt(os.path.join(sourcedir,'eta_bar.txt')) #Reload eta_bar from previous run as a starting point. 
+    eta_bar = np.loadtxt(os.path.join(sourcedir,'eta_bar_%d.txt'%num_stell)) #Reload eta_bar from previous run as a starting point. 
 
     return (coils, ma, currents, eta_bar)
 

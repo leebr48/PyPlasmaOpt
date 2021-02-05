@@ -77,10 +77,12 @@ class CoilCollection():
             else:
                 res[self.map[i]] += self.current_sign[i] * derivatives[i]
         return np.asarray(res)
-
-    def savetotxt(self, dirname):
+'''
+    def savetotxt(self, dirname, stellNum):
         import os
         os.makedirs(dirname, exist_ok=True)
         for i in range(len(self.coils)):
-            np.savetxt(os.path.join(dirname, 'coil-%i.txt' % i), self.coils[i].gamma)
-            np.savetxt(os.path.join(dirname, 'current-%i.txt' % i), [self.currents[i]])
+            np.savetxt(os.path.join(dirname, 'coil-%d.txt' % i), self.coils[i].gamma)
+            np.savetxt(os.path.join(dirname, 'current-%d_%d.txt' % (i,stellNum)), [self.currents[i]])
+            #np.savetxt(os.path.join(dirname, 'current-%d_%d.txt' % (i,j)), [self.currents[i]])
+'''

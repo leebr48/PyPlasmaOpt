@@ -126,12 +126,15 @@ class NearAxisQuasiSymmetryObjective():
             if length % wanted_parts != 0:
                 raise IOError('The list is not evenly divisible into the requested number of parts.')
             return [ alist[i*length // wanted_parts: (i+1)*length // wanted_parts] for i in range(wanted_parts) ]
+        
+        x_ma_split = split_list(x_ma)
+        x_current_split = split_list(x_current)
 
         for i in self.stellList:
             self.qsf_group[i].eta_bar = x_etabar[i]
-            self.ma_group[i].set_dofs(split_list(x_ma)[i])
+            self.ma_group[i].set_dofs(x_ma_split[i])
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma) 
-            self.stellarator_group[i].set_currents(self.current_fak * split_list(x_current)[i])
+            self.stellarator_group[i].set_currents(self.current_fak * x_current_split[i])
             if not self.freezeCoils:
                 self.stellarator_group[i].set_dofs(x_coil) 
 
@@ -372,8 +375,8 @@ class NearAxisQuasiSymmetryObjective():
         ax = fig.add_subplot(1, 2, 1, projection="3d")
         for i in range(0, len(self.stellarator_group[0].coils)): 
             ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
-        for i in range(len(self.ma_group)):
-            self.ma_group[i].plot(ax=ax, show=False, closed_loop=False)
+        #for i in range(len(self.ma_group)):
+        self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=90., azim=0)
         ax.set_xlim(-2, 2)
         ax.set_ylim(-2, 2)
@@ -381,8 +384,8 @@ class NearAxisQuasiSymmetryObjective():
         ax = fig.add_subplot(1, 2, 2, projection="3d")
         for i in range(0, len(self.stellarator_group[0].coils)): 
             ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
-        for i in range(len(self.ma_group)):
-            self.ma_group[i].plot(ax=ax, show=False, closed_loop=False)
+        #for i in range(len(self.ma_group)):
+        self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=0., azim=0)
         ax.set_xlim(-2, 2)
         ax.set_ylim(-2, 2)
@@ -435,8 +438,6 @@ class NearAxisQuasiSymmetryObjective():
                 gamma = np.vstack((gamma, gamma0))
             mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[len(self.stellarator_group[0]._base_coils)])
 
-
-
             mlab.view(azimuth=0, elevation=0)
             mlab.savefig(self.outdir + "mayavi_top_" + filename, magnification=4)
             mlab.view(azimuth=0, elevation=90)
@@ -452,10 +453,11 @@ class NearAxisQuasiSymmetryObjective():
         os.makedirs(dirname, exist_ok=True)
         matlabcoils = [c.tomatlabformat() for c in self.stellarator_group[0]._base_coils]
         np.savetxt(os.path.join(dirname, 'coils.txt'), np.hstack(matlabcoils))
-        np.savetxt(os.path.join(dirname, 'currents.txt'), self.stellarator_group[0]._base_currents) 
-        np.savetxt(os.path.join(dirname, 'eta_bar.txt'), [self.qsf_group[0].eta_bar])
-        np.savetxt(os.path.join(dirname, 'cR.txt'), self.ma_group[0].coefficients[0])
-        np.savetxt(os.path.join(dirname, 'sZ.txt'), np.concatenate(([0], self.ma_group[0].coefficients[1])))
+        for i in self.stellList:
+            np.savetxt(os.path.join(dirname, 'currents_%d.txt'%i), self.stellarator_group[i]._base_currents) 
+            np.savetxt(os.path.join(dirname, 'eta_bar_%d.txt'%i), [self.qsf_group[i].eta_bar])
+            np.savetxt(os.path.join(dirname, 'cR_%d.txt'%i), self.ma_group[i].coefficients[0])
+            np.savetxt(os.path.join(dirname, 'sZ_%d.txt'%i), np.concatenate(([0], self.ma_group[i].coefficients[1])))
 
 
 class SimpleNearAxisQuasiSymmetryObjective():
