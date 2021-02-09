@@ -11,7 +11,7 @@ import numpy as np
 import os
 
 class NearAxisQuasiSymmetryObjective():
-    def __init__(self, stellarator, ma, iota_target, eta_bar=-2.25,
+    def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25,
                  coil_length_target=None, magnetic_axis_length_target=None,
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
@@ -25,14 +25,14 @@ class NearAxisQuasiSymmetryObjective():
         self.freezeCoils = freezeCoils
         self.iota_weight = iota_weight
         self.quasisym_weight = quasisym_weight
-        self.stellarator_group = [stellarator for i in stellList]
+        self.stellarator_group = stellarators
         self.seed = seed
-        self.ma_group = [ma for item in stellList]
+        self.ma_group = mas
         bs = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList]
         self.biotsavart_group = bs
         for i in stellList:
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
-        qsf = [QuasiSymmetricField(eta_bar, self.ma_group[i]) for i in stellList] 
+        qsf = [QuasiSymmetricField(eta_bar[i], self.ma_group[i]) for i in stellList] 
         self.qsf_group = qsf
         #sigma = qsf.sigma #Seems to not be used for anything
         #iota = qsf.iota #Seems to not be used for anything
@@ -51,19 +51,19 @@ class NearAxisQuasiSymmetryObjective():
 
         self.J_coil_curvatures = [CurveCurvature(coil, length) for (coil, length) in zip(coils, self.coil_length_targets)]
         self.J_coil_torsions   = [CurveTorsion(coil, p=2) for coil in coils]
-        self.J_sobolev_weights = [SobolevTikhonov(coil, weights=[1., .1, .1, .1]) for coil in coils] + [SobolevTikhonov(ma, weights=[1., .1, .1, .1])] #We're ignoring these anyway
+        self.J_sobolev_weights = [SobolevTikhonov(coil, weights=[1., .1, .1, .1]) for coil in coils] + [SobolevTikhonov(self.ma_group[0], weights=[1., .1, .1, .1])] #Wrong, but we're ignoring these anyway
         self.J_arclength_weights = [UniformArclength(coil, length) for (coil, length) in zip(coils, self.coil_length_targets)]
-        self.J_distance = MinimumDistance(stellarator.coils, minimum_distance)
+        self.J_distance = MinimumDistance(self.stellarator_group[0].coils, minimum_distance)
 
         self.iota_target                 = iota_target #This is a LIST of floats now. 
         self.curvature_weight             = curvature_weight 
         self.torsion_weight               = torsion_weight
-        self.num_ma_dofs = len(ma.get_dofs())  
+        self.num_ma_dofs = len(self.ma_group[0].get_dofs())  
         self.current_fak = 1./(4 * pi * 1e-7)
         self.eta_bar_idxs = (0,self.num_stellarators)
         self.ma_dof_idxs = (self.eta_bar_idxs[1], self.eta_bar_idxs[1] + self.num_stellarators*self.num_ma_dofs) 
-        self.current_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + self.num_stellarators*len(stellarator.get_currents()))
-        self.coil_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + len(stellarator.get_dofs()))
+        self.current_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + self.num_stellarators*len(self.stellarator_group[0].get_currents()))
+        self.coil_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + len(self.stellarator_group[0].get_dofs()))
         if mode in ["deterministic", "stochastic"]:
             eta_bar_cat = [self.qsf_group[i].eta_bar for i in stellList]
             ma_dofs_cat = np.asarray([self.ma_group[i].get_dofs() for i in stellList]).flatten()
@@ -87,8 +87,8 @@ class NearAxisQuasiSymmetryObjective():
         sampler = GaussianSampler(coils[0].points, length_scale=length_scale_perturb, sigma=sigma_perturb) #I think I can ignore this
         self.sampler = sampler#I think I can ignore this
 
-        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(stellarator, sampler, ninsamples, qsf, self.seed)#I think I can ignore this 
-        self.stochastic_qs_objective_out_of_sample = None#I think I can ignore this
+        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(self.stellarator_group[0], sampler, ninsamples, qsf, self.seed) #I think I can ignore this 
+        self.stochastic_qs_objective_out_of_sample = None #I think I can ignore this
 
         if mode in ["deterministic", "stochastic"]:
             self.mode = mode 
@@ -111,7 +111,7 @@ class NearAxisQuasiSymmetryObjective():
         self.dJvals = []
         self.out_of_sample_values = []
         self.outdir = outdir
-
+    
     def set_dofs(self, x):
         x_etabar = x[self.eta_bar_idxs[0]:self.eta_bar_idxs[1]]
         x_ma = x[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]] 
@@ -185,7 +185,7 @@ class NearAxisQuasiSymmetryObjective():
             self.res5 = 0
         if torsion_weight > 1e-15 and not self.freezeCoils:
             self.res6      = sum(torsion_weight * J.J() for J in J_coil_torsions)
-            self.drescoil += self.torsion_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
+            self.drescoil += self.torsion_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
         else:
             self.res6 = 0 
 
@@ -201,7 +201,7 @@ class NearAxisQuasiSymmetryObjective():
 
         if self.arclength_weight > 1e-15 and not self.freezeCoils:
             self.res8 = sum(self.arclength_weight * J.J() for J in self.J_arclength_weights)
-            self.drescoil += self.arclength_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
+            self.drescoil += self.arclength_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
         else:
             self.res8 = 0
 

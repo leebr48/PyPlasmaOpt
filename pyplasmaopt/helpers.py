@@ -84,7 +84,7 @@ def get_flat_data(Nt=4, nfp=3, ppp=10):
     ma.update()
     return (coils, ma)
 
-def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_stell=0,num_coils=3):
+def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=0,num_coils=3,copies=1):
     "Data for coils, currents, and the magnetic axis is pulled from sourcedir. \
             There is only need to input *unique* coils - the others will be created using CoilCollection as usual. \
             The function parameters have the same meaning as in get_ncsx_data. \
@@ -112,26 +112,27 @@ def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,num_stell=0,num_coil
         coils[coilind].update()
 
     ma_raw = []
-    with open(os.path.join(sourcedir,'maCoeffs_%d.txt'%num_stell),'r') as f:
+    with open(os.path.join(sourcedir,'maCoeffs_%d.txt'%stellID),'r') as f:
         for line in f:
             linelist = [float(coeff) for coeff in line.strip().split()]
             ma_raw.append(linelist)
 
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    ma = StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
+    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
 
-    for ind1 in range(len(ma_raw)):
-        for ind2 in range(len(ma_raw[ind1])):
-                ma.coefficients[ind1][ind2] = ma_raw[ind1][ind2]
-    ma.update() #The magnetic axis should now be ready to go. 
+    for j in range(copies):
+        for ind1 in range(len(ma_raw)):
+            for ind2 in range(len(ma_raw[ind1])):
+                    mas[j].coefficients[ind1][ind2] = ma_raw[ind1][ind2]
+        mas[j].update() #The magnetic axes should now be ready to go. 
 
-    currents = np.loadtxt(os.path.join(sourcedir,'currents_%d.txt'%num_stell)).tolist() #Only the currents for the three unique coils need to be imported. 
+    currents = np.loadtxt(os.path.join(sourcedir,'currents_%d.txt'%stellID)).tolist() #Only the currents for the three unique coils need to be imported. 
 
-    eta_bar = np.loadtxt(os.path.join(sourcedir,'eta_bar_%d.txt'%num_stell)) #Reload eta_bar from previous run as a starting point. 
+    eta_bar = np.loadtxt(os.path.join(sourcedir,'eta_bar_%d.txt'%stellID)) #Reload eta_bar from previous run as a starting point. 
+    
+    return (coils, mas, currents, eta_bar)
 
-    return (coils, ma, currents, eta_bar)
-
-def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10):
+def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1):
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     coil_data = np.loadtxt(os.path.join(dir_path, "data", "NCSX_coil_coeffs.dat"), delimiter=',')
@@ -152,18 +153,18 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10):
         coils[ic].update()
 
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    ma = StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
+    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
     cR = [1.471415400740515, 0.1205306261840785, 0.008016125223436036, -0.000508473952304439, -0.0003025251710853062, -0.0001587936004797397, 3.223984137937924e-06, 3.524618949869718e-05, 2.539719080181871e-06, -9.172247073731266e-06, -5.9091166854661e-06, -2.161311017656597e-06, -5.160802127332585e-07, -4.640848016990162e-08, 2.649427979914062e-08, 1.501510332041489e-08, 3.537451979994735e-09, 3.086168230692632e-10, 2.188407398004411e-11, 5.175282424829675e-11, 1.280947310028369e-11, -1.726293760717645e-11, -1.696747733634374e-11, -7.139212832019126e-12, -1.057727690156884e-12, 5.253991686160475e-13]
     sZ = [0.06191774986623827, 0.003997436991295509, -0.0001973128955021696, -0.0001892615088404824, -2.754694372995494e-05, -1.106933185883972e-05, 9.313743937823742e-06, 9.402864564707521e-06, 2.353424962024579e-06, -1.910411249403388e-07, -3.699572817752344e-07, -1.691375323357308e-07, -5.082041581362814e-08, -8.14564855367364e-09, 1.410153957667715e-09, 1.23357552926813e-09, 2.484591855376312e-10, -3.803223187770488e-11, -2.909708414424068e-11, -2.009192074867161e-12, 1.775324360447656e-12, -7.152058893039603e-13, -1.311461207101523e-12, -6.141224681566193e-13, -6.897549209312209e-14]
+    for j in range(copies):
+        for i in range(Nt_ma):
+            mas[j].coefficients[0][i] = cR[i]
+            mas[j].coefficients[1][i] = sZ[i]
+        mas[j].coefficients[0][Nt_ma] = cR[Nt_ma]
+        mas[j].update()
 
-    for i in range(Nt_ma):
-        ma.coefficients[0][i] = cR[i]
-        ma.coefficients[1][i] = sZ[i]
-    ma.coefficients[0][Nt_ma] = cR[Nt_ma]
-
-    ma.update()
     currents = [c/1.474 for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]] # normalise to get a magnetic field of around 1 at the axis
-    return (coils, ma, currents)
+    return (coils, mas, currents)
 
 
 def get_16_coil_data(Nt=10, ppp=10, at_optimum=False):

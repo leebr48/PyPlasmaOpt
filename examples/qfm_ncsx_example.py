@@ -93,6 +93,7 @@ parser.add_argument("--noVMEC", action='store_true', required=False, default=Fal
 parser.add_argument("--noCompare", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozRun", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
+parser.add_argument("--stellID", type=int, default=0)
 args = parser.parse_args() 
 
 for sourceitem in args.sourcedir:
@@ -115,6 +116,7 @@ for sourceitem in args.sourcedir:
     nmax = args.nmax
     ntheta = args.ntheta
     nphi = args.nphi
+    stellID = args.stellID
    
     print('Processing ',sourcedir)
 
@@ -174,7 +176,7 @@ for sourceitem in args.sourcedir:
         for i in range(nparticles):
             plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.1)
             plt.plot(R[0,:],Z[0,:])
-        plt.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
         print('Poincare plot created.')
 
     # Load in coil and current information 
@@ -184,7 +186,7 @@ for sourceitem in args.sourcedir:
     groups = []
     xx = [[]]; yy = [[]]; zz = [[]]
     for icoil in range(Ncoils):
-        filename = str(pl.Path(sourcedir).joinpath('current-'+str(icoil)+'.txt'))
+        filename = str(pl.Path(sourcedir).joinpath('current-'+str(icoil)+'_'+str(stellID)+'.txt')) 
         xx.append([]); yy.append([]); zz.append([])
         if not os.path.exists(filename) :
             raise IOError ("File does not exist. Please check again!")
@@ -314,7 +316,7 @@ for sourceitem in args.sourcedir:
         iota_full[0:-1] = (vmecOutput.iota[0:-1]+vmecOutput.iota[1::])*0.5
         iota_full[-1] = 1.5*vmecOutput.iota[-1]-0.5*vmecOutput.iota[-2]
 
-        iota_pyplasmaopt = -1*np.loadtxt(str(pl.Path(sourcedir).joinpath('iota_ma.txt'))) #VMEC and PyPlasmaOpt define iota differently, hence the negative sign. 
+        iota_pyplasmaopt = -1*np.loadtxt(str(pl.Path(sourcedir).joinpath('iota_ma_%d.txt'%stellID))) #VMEC and PyPlasmaOpt define iota differently, hence the negative sign.
 
         plt.figure()
         plt.plot(vmecOutput.s_full[1::],iota_full)
@@ -322,7 +324,7 @@ for sourceitem in args.sourcedir:
         plt.xlabel('$\Psi_T/\Psi_T^{\mathrm{edge}}$')
         plt.ylabel('$\iota$')
         plt.legend(['VMEC','pyplasmaopt'])
-        plt.savefig(str(pl.Path(outdir).joinpath(iota_compare_fig_name+'.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(iota_compare_fig_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
         index = np.argmin((iota_full-iota_pyplasmaopt)**2)
         VMEC_iota = iota_full[index]
@@ -345,13 +347,13 @@ for sourceitem in args.sourcedir:
         ax = fig.add_subplot(111, projection='3d')
         ax.plot_surface(X,Y,Z)
         plt.title(coils_file_suffix)
-        plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+'_'+coils_file_suffix+'.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+'_'+coils_file_suffix+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.plot_surface(X_vmec,Y_vmec,Z_vmec)
         plt.title('VMEC')
-        plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+'_VMEC.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+'_VMEC'+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
         figind = 1
         for iphi in range(0,nphi,profile_compare_ind_freq):
@@ -361,7 +363,7 @@ for sourceitem in args.sourcedir:
             plt.xlabel('R')
             plt.ylabel('Z')
             plt.legend(['pyplasmaopt','VMEC'])
-            plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+str(figind)+'.'+image_filetype)),bbox_inches='tight')
+            plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+str(figind)+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
             plt.close('all')
             figind += 1
 
@@ -444,7 +446,7 @@ for sourceitem in args.sourcedir:
         plt.xlabel('Normalized toroidal flux')
         plt.title('Fourier harmonics of |B| in Boozer coordinates')
 
-        plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
         plt.figure()
         QA_metric = np.zeros(len(jlist))
@@ -462,4 +464,4 @@ for sourceitem in args.sourcedir:
         plt.xlabel('s')
         plt.ylabel('QA metric')
 
-        plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'.'+image_filetype)),bbox_inches='tight')
+        plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')

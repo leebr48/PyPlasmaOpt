@@ -28,7 +28,9 @@ def example3_get_objective():
     parser.add_argument("--QS_wt", type=float, default=100.0) #Might switch to 10 if 100 causes issues.
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--rld", type=str, required=False)
-    parser.add_argument("--numStell", type=int, default=0)
+    parser.add_argument("--stellID", type=int, default=0)
+    parser.add_argument("--iter", type=int, default=10000)
+    parser.add_argument("--Taylor", action='store_true', default=False)
     args = parser.parse_args()
 
     keys = list(args.__dict__.keys())
@@ -40,14 +42,15 @@ def example3_get_objective():
     if args.__dict__[keys[1]]:
         outdir += "_atopt"
     if not args.rld:
-        for i in range(2, len(keys)):
+        for i in range(2, len(keys)-4):
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
     if args.rld:
-        for i in range(2, len(keys)-1):
+        for i in range(2, len(keys)-4):
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
-        outdir += "_reload-True"
+        outdir += "_rld-True"
+        #outdir += "_stellID-%d"%args.stellID
     outdir = outdir.replace(".", "p")
     outdir = outdir.replace(' ','')
     outdir = outdir.replace(',','_')
@@ -56,26 +59,32 @@ def example3_get_objective():
     os.makedirs(outdir, exist_ok=True)
     set_file_logger(outdir + "log.txt")
     info("Configuration: \n%s", args.__dict__)
-    
-    if args.rld:
-        sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
-        with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
-            f.write('{:}\n'.format(sourcedir))
-        (coils, ma, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,num_stell=args.numStell,num_coils=3) 
-    else:
-        (coils, ma, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp)
-        eta_bar = 0.685
-    
-    stellarator = CoilCollection(coils, currents, args.nfp, True)
+
     if isinstance(args.iota_targ,list):
         iota_target = args.iota_targ
     else:
         iota_target = [args.iota_targ]
+    
+    num_stell = len(iota_target)
+
+    if args.rld:
+        sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
+        with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
+            f.write('{:}\n'.format(sourcedir))
+            f.write('stellID: {:}'.format(args.stellID))
+        (coils, mas, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=3,copies=num_stell) 
+        eta_bar = np.repeat(eta_bar,num_stell)
+    else:
+        (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
+        eta_bar = np.repeat(0.685,num_stell)
+
+    stellarators = [CoilCollection(coils, currents, args.nfp, True) for i in range(num_stell)]
+
     coil_length_target = None
     magnetic_axis_length_target = None
 
     obj = NearAxisQuasiSymmetryObjective(
-        stellarator, ma, iota_target, eta_bar=eta_bar,
+        stellarators, mas, iota_target, eta_bar=eta_bar,
         coil_length_target=coil_length_target, magnetic_axis_length_target=magnetic_axis_length_target,
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,

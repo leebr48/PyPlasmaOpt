@@ -5,7 +5,7 @@ import numpy as np
 import pathlib as pl
 
 obj, args = example3_get_objective()
-obj.plot('tmp.png')
+obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
 
 outdir = obj.outdir
 
@@ -62,8 +62,7 @@ if False:
     taylor_test(obj, x, order=6)
     import sys; sys.exit()
 
-maxiter = 10000 #for real
-#maxiter = 1 #for testing
+maxiter = args.iter
 memory = 200
 
 def J_scipy(x):
@@ -124,5 +123,5 @@ np.savetxt(outdir + "dJvals.txt", obj.dJvals)
 np.savetxt(outdir + "xiterates.txt", obj.xiterates)
 np.savetxt(outdir + "Jvals_individual.txt", obj.Jvals_individual)
 
-if False:
+if args.Taylor:
     taylor_test(obj, xmin)
