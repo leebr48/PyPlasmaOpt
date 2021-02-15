@@ -1,10 +1,10 @@
 from pyplasmaopt import *
-from example3_get_objective import example3_get_objective
+from get_objective import get_objective
 from scipy.optimize import minimize
 import numpy as np
 import pathlib as pl
 
-obj, args = example3_get_objective()
+obj, args = get_objective()
 obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
 
 outdir = obj.outdir

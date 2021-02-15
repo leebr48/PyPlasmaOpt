@@ -1,7 +1,8 @@
 """
 This script is used to compute a quadratic flux minimizing surface with 
 a given volume (default 1.0) for the NCSX coils, as well as information
-about the coils. This all is then fed into VMEC. 
+about the coils. This all is then fed into VMEC. The script only works
+for ONE stellarator at a time! 
 """
 
 # Options
@@ -46,7 +47,7 @@ profile_compare_ind_freq = 2 #Integer describing the spacing between profile ima
 booz_output_file = 'booz_output.txt'
 booz_toroidal_harmonics = 51
 booz_poloidal_harmonics = 51
-booz_surface_indices = '1 25 50 75 99' #Surface indices on which to compute booz transform
+booz_surface_indices = '2 25 50 75 99' #Surface indices on which to compute booz transform
 max_m = 10 # maximum poloidal mode number to plot
 max_n = 10 # maximum toroidal mode number to plot
 booz_harmonicsplot_name = 'booz_harmonics_plot'
@@ -78,6 +79,7 @@ parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--sourcedir", nargs='+', required=True)
 parser.add_argument("--outdir", type=str, required=False, default='') 
 parser.add_argument("--volume", type=float, required=False, default=1.0) # target volume
+#parser.add_argument("--volume", type=float, required=False, default=0.1) # target volume #FIXME
 parser.add_argument("--ppp", type=int, default=20)
 parser.add_argument("--Nt_ma", type=int, default=6)
 parser.add_argument("--Nt_coils", type=int, default=6)
@@ -118,19 +120,21 @@ for sourceitem in args.sourcedir:
     nphi = args.nphi
     stellID = args.stellID
    
-    print('Processing ',sourcedir)
+    print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 
     with open(str(pl.Path(outdir).joinpath('postprocess_source.txt')),'w') as f:
         f.write('{:}\n'.format(sourcedir))
+        f.write('StellID: {:}'.format(str(stellID)))
 
     # Get the QFM surface
     #(unique_coils, ma, unique_currents) = get_ncsx_data(Nt_ma=Nt_ma, Nt_coils=Nt_coils, ppp=ppp)
-    (unique_coils, ma, unique_currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils)
+    (unique_coils, mas, unique_currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
+    ma = mas[0] #You should only be loading one stellarator at a time! 
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
     bs = BiotSavart(stellarator.coils, stellarator.currents)
 
     qfm = QfmSurface(mmax, nmax, nfp, bs, ntheta, nphi, volume)
-
+    
     objective = qfm.quadratic_flux
     d_objective = qfm.d_quadratic_flux
 
@@ -138,8 +142,8 @@ for sourceitem in args.sourcedir:
     paramsInitR = np.zeros((qfm.mnmax))
     paramsInitZ = np.zeros((qfm.mnmax))
 
-    paramsInitR[(qfm.xm==1)*(qfm.xn==0)]=0.188077
-    paramsInitZ[(qfm.xm==1)*(qfm.xn==0)]=-0.188077
+    paramsInitR[(qfm.xm==1)*(qfm.xn==0)]=0.188077/np.sqrt(volume) #FIXME
+    paramsInitZ[(qfm.xm==1)*(qfm.xn==0)]=-0.188077/np.sqrt(volume) #FIXME
 
     paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
@@ -155,7 +159,8 @@ for sourceitem in args.sourcedir:
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
         magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
-        rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.9, delta=0.01, steps_per_period=spp)
+        #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp) #FIXME
+        rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.9, delta=0.01, steps_per_period=spp) #FIXME
         nparticles = rphiz.shape[0]
 
         data0 = np.zeros((nperiods, nparticles*2))
@@ -171,7 +176,7 @@ for sourceitem in args.sourcedir:
             data2[:, 2*i+1] = rphiz[i, range(2*spp//(nfp*4), nperiods*spp, spp), 2]
             data3[:, 2*i+0] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 0]
             data3[:, 2*i+1] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 2]
-            
+
         plt.figure()
         for i in range(nparticles):
             plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.1)

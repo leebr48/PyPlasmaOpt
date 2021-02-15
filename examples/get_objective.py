@@ -7,7 +7,7 @@ import pathlib as pl
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 
-def example3_get_objective():
+def get_objective():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--out", type=str, default="")
     parser.add_argument("--at-opt", dest="at_optimum", default=False,
