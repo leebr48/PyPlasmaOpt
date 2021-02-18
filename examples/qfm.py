@@ -131,6 +131,7 @@ for sourceitem in args.sourcedir:
     (unique_coils, mas, unique_currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
     ma = mas[0] #You should only be loading one stellarator at a time! 
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
+
     bs = BiotSavart(stellarator.coils, stellarator.currents)
 
     qfm = QfmSurface(mmax, nmax, nfp, bs, ntheta, nphi, volume)

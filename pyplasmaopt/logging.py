@@ -18,7 +18,7 @@ def set_file_logger(path):
     filename, file_extension = os.path.splitext(path)
     from math import log10, ceil
     digits = ceil(log10(comm.size))
-    fileHandler = logging.FileHandler(filename + "-rank" + ("%i" % comm.rank).zfill(digits) + file_extension, mode='a')
+    fileHandler = logging.FileHandler(filename + "-rank" + ("%i" % comm.rank).zfill(digits) + file_extension, mode='w')
     formatter = logging.Formatter(fmt="%(asctime)s:%(name)s:%(levelname)s %(message)s")
     fileHandler.setFormatter(formatter)
     logger.addHandler(fileHandler)

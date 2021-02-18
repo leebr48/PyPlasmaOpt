@@ -10,7 +10,7 @@ comm = MPI.COMM_WORLD
 def get_objective():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--out", type=str, default="")
-    parser.add_argument("--at-opt", dest="at_optimum", default=False,
+    parser.add_argument("--at_opt", dest="at_optimum", default=False,
                         action="store_true")
     parser.add_argument("--nfp", type=int, default=3)
     parser.add_argument("--ppp", type=int, default=20)
@@ -21,8 +21,8 @@ def get_objective():
     parser.add_argument("--tik", type=float, default=0.)
     parser.add_argument("--sob", type=float, default=0.)
     parser.add_argument("--arclen", type=float, default=0.)
-    parser.add_argument("--min-dist", type=float, default=0.04)
-    parser.add_argument("--dist-wt", type=float, default=0.)
+    parser.add_argument("--min_dist", type=float, default=0.04)
+    parser.add_argument("--dist_wt", type=float, default=0.)
     parser.add_argument("--iota_targ", type=float, nargs='*', default=[-0.395938929522566])
     parser.add_argument("--iota_wt", type=float, default=1.0)
     parser.add_argument("--QS_wt", type=float, default=100.0) #Might switch to 10 if 100 causes issues.
