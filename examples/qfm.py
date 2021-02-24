@@ -9,7 +9,12 @@ for ONE stellarator at a time!
 ## All
 image_filetype = 'png' #Choose something that MatPlotLib can handle. 
 ## Poincare plot
+qfm_max_tries = 5
+poincare_max_tries = 5
 nperiods = 200 #Poincare plot setting
+batch_size = 4
+max_thickness = 0.9
+delta = 0.01
 spp = 120 #Poincare plot setting
 poincare_plot_name = 'poincare_w_qfm'
 ## CoilPy
@@ -150,7 +155,23 @@ for sourceitem in args.sourcedir:
 
     optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
     optimizer.add_objective(objective,d_objective,1)
-    (xopt, fopt, result) = optimizer.optimize(paramsInit,package='scipy',method='BFGS') 
+    
+
+    runs = 1
+    while runs < qfm_max_tries:
+        print('Beginning QFM surface optimization.')
+        (xopt, fopt, result, message) = optimizer.optimize(paramsInit,package='scipy',method='BFGS') 
+        if message != 'Desired error not necessarily achieved due to precision loss.':
+            break
+        else:
+            print('Optimization failed. Running again with new parameters.')
+            volume = volume/2
+            runs += 1 
+    if message == 'Desired error not necessarily achieved due to precision loss.':
+        print('QFM surface not found!')
+        quit()
+    print('Final QFM surface volume: ', volume)
+    
     R,Z = qfm.position(xopt) # R and Z for the surface over ONE field period
     X,Y = qfm.Cyl_to_Cart(R) # X and Y for the surface over ONE field period
 
@@ -159,9 +180,24 @@ for sourceitem in args.sourcedir:
 
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
-        magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
+        #magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
         #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp) #FIXME
-        rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.9, delta=0.01, steps_per_period=spp) #FIXME
+        
+        magnetic_axis_radius = np.sum(ma.coefficients[0]) #First group is for R, second is for Z. First series is cosine and we calculate R at phi=0, so we can sum the coefficients to get R.  
+        
+        runs = 1
+        while runs < poincare_max_tries: 
+            try:
+                rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp) #FIXME
+                break 
+            except ValueError:
+                max_thickness = max_thickness/2
+                delta = delta/2
+                #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp) #FIXME
+                runs += 1
+                print('Poincare plotting failed - rerunning with new parameters.')
+                continue
+
         nparticles = rphiz.shape[0]
 
         data0 = np.zeros((nperiods, nparticles*2))

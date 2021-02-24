@@ -57,17 +57,17 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def get_flat_data(Nt=4, nfp=3, ppp=10):
+def get_flat_data(Nt_coils=4, Nt_ma=4, nfp=3, ppp=10, num_coils=3, copies=1):
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     coil_data = np.loadtxt(os.path.join(dir_path, "data", "flat.dat"), delimiter=',')
-    num_coils = 3
-    coils = [CartesianFourierCurve(Nt, np.linspace(0, 1, Nt*ppp, endpoint=False)) for i in range(num_coils)]
+    #num_coils = 3
+    coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
     for ic in range(num_coils):
         coils[ic].coefficients[0][0] = coil_data[0, 6*ic + 1]
         coils[ic].coefficients[1][0] = coil_data[0, 6*ic + 3]
         coils[ic].coefficients[2][0] = coil_data[0, 6*ic + 5]
-        for io in range(0, Nt):
+        for io in range(0, Nt_coils):
             coils[ic].coefficients[0][2*io+1] = coil_data[io+1, 6*ic + 0]
             coils[ic].coefficients[0][2*io+2] = coil_data[io+1, 6*ic + 1]
             coils[ic].coefficients[1][2*io+1] = coil_data[io+1, 6*ic + 2]
@@ -76,13 +76,17 @@ def get_flat_data(Nt=4, nfp=3, ppp=10):
             coils[ic].coefficients[2][2*io+2] = coil_data[io+1, 6*ic + 5]
         coils[ic].update()
 
-    numpoints = Nt*ppp+1 if ((Nt*ppp) % 2 == 0) else Nt*ppp
-    ma = StelleratorSymmetricCylindricalFourierCurve(Nt, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
-    ma.coefficients[0][0] = 1.
-    ma.coefficients[1][0] = 0.01
+    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
+    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
+    for j in range(copies):
+        mas[j].coefficients[0][0] = 1.
+        mas[j].coefficients[1][0] = 0.01
+        mas[j].update()
 
-    ma.update()
-    return (coils, ma)
+    currents = [6.14E+05/1.474]*num_coils #Stolen from NCSX, should be okay for initialization.
+    currents[0] += currents[0]/20 #Perturbation so the solver doesn't get stuck. #FIXME - remove? Might need to play with the weights if this gets stuck (first term too large).  
+
+    return (coils, mas, currents)
 
 def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=0,num_coils=3,copies=1):
     "Data for coils, currents, and the magnetic axis is pulled from sourcedir. \

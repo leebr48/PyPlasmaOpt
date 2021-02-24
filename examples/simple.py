@@ -15,7 +15,7 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
         #np.random.seed(1)
         h = np.random.rand(*(x.shape))
         np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction-%d.txt'%randind)), h)
-        print('h: ',h)
+        #print('h: ',h)
         if export:
             obj.update(h)
             obj.save_to_matlab('h')
@@ -63,12 +63,12 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
         yminind = np.argmin(errvec)
         refline = np.asarray([item**(order) for item in epsvec])
         split = errvec[yminind]-refline[yminind]
-        upshift = 0.9*split
+        upshift = split
         refline2 = refline/upshift
         plt.loglog(epsvec,errvec,marker='o')
         plt.loglog(epsvec,refline2,linestyle='--',marker='o')
-        plt.xlim([epsvec[yminind]/1e2,np.max(epsvec)])
-        plt.ylim([errvec[yminind]/1e15,np.max(errvec)])
+        plt.xlim([epsvec[yminind]/1e5,np.max(epsvec)])
+        plt.ylim([errvec[yminind]/1e30,np.max(errvec)])
         plt.xlabel('eps')
         plt.ylabel('err (normalized)')
         plt.savefig(str(pl.Path(outdir).joinpath('taylorPlot-%d.png'%randind)),bbox_inches='tight')

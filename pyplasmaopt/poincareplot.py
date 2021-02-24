@@ -58,6 +58,7 @@ def compute_field_lines(biotsavart, nperiods=200, batch_size=8, magnetic_axis_ra
     tspan = [0, 2*pi*nperiods]
     t_eval = np.linspace(0, tspan[-1], nt+1)
     i = 0
+    successes = 0
     while (i+1)*batch_size*delta < max_thickness:
         y0 = np.zeros((batch_size, 2))
         y0[:, 0] = np.linspace(magnetic_axis_radius + i*batch_size*delta, magnetic_axis_radius+(i+1)*batch_size*delta, batch_size, endpoint=False)
@@ -77,10 +78,14 @@ def compute_field_lines(biotsavart, nperiods=200, batch_size=8, magnetic_axis_ra
             odesol = OdeSolution(ts, denseoutputs)
             res.append(odesol(t_eval))
             print(y0[0, 0], "to", y0[-1, 0], "-> success")
+            successes += 1
         else:
             print(y0[0, 0], "to", y0[-1, 0], "-> fail")
         #     break
         i += 1
+
+    if successes == 0:
+        raise ValueError('All the Poincare integrations failed!')
 
     nparticles = len(res) * batch_size
 

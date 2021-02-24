@@ -413,6 +413,7 @@ class GradOptimizer:
             fopt (float): final ojective function value
             result (int): return value from scipy/nlopt providing
                 reason for termination
+            message (str): warning message from optimizer
         """
         self._test_x(x)
         self._test_scalar(ftol_abs,'ftol_abs')
@@ -429,7 +430,7 @@ class GradOptimizer:
                                        xtol_abs,xtol_rel,**kwargs)
         if (package == 'scipy'):
             self._test_method_scipy(method)
-            [xopt, fopt, result] = self.scipy_optimize(x,method,**kwargs)
+            [xopt, fopt, result, message] = self.scipy_optimize(x,method,**kwargs)
             
         # Save output 
         rank = MPI.COMM_WORLD.Get_rank()
@@ -442,7 +443,7 @@ class GradOptimizer:
             np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist.txt')),self.objective_hist)
             np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)
             
-        return xopt, fopt, result
+        return xopt, fopt, result, message
     
     def nlopt_objective(self, x, grad):
         """
@@ -658,6 +659,7 @@ class GradOptimizer:
             fopt (float): final ojective function value
             result (int): return value from scipy/nlopt providing
                 reason for termination
+            message (str): warning message from optimizer
         """
 
         self._test_method_scipy(method)
@@ -714,7 +716,8 @@ class GradOptimizer:
         xopt = OptimizeResult.x
         result = OptimizeResult.status
         fopt = OptimizeResult.fun
-        return xopt, fopt, result
+        message = OptimizeResult.message
+        return xopt, fopt, result, message
         
     def _test_x(self,x):
         """

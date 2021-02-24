@@ -31,6 +31,8 @@ def get_objective():
     parser.add_argument("--stellID", type=int, default=0)
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)
+    parser.add_argument("--flat", action='store_true', default=False)
+    parser.add_argument("--num_coils", type=int, default=3)
     args = parser.parse_args()
 
     keys = list(args.__dict__.keys())
@@ -42,11 +44,11 @@ def get_objective():
     if args.__dict__[keys[1]]:
         outdir += "_atopt"
     if not args.rld:
-        for i in range(2, len(keys)-4):
+        for i in range(2, len(keys)-5):
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
     if args.rld:
-        for i in range(2, len(keys)-4):
+        for i in range(2, len(keys)-5):
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
         outdir += "_rld-True"
@@ -72,8 +74,11 @@ def get_objective():
         with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
             f.write('{:}\n'.format(sourcedir))
             f.write('stellID: {:}'.format(args.stellID))
-        (coils, mas, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=3,copies=num_stell) 
+        (coils, mas, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
         eta_bar = np.repeat(eta_bar,num_stell)
+    elif args.flat:
+        (coils, mas, currents) = get_flat_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils)
+        eta_bar = np.repeat(1,num_stell)
     else:
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
         eta_bar = np.repeat(0.685,num_stell)
