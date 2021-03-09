@@ -13,7 +13,7 @@ A class used for gradient-based optimization
 """
 
 class GradOptimizer:
-    def __init__(self,nparameters,outdir,name='optimization'):
+    def __init__(self,nparameters,outdir=None,name='optimization'):
         if (isinstance(nparameters,int) == False):
             raise TypeError('nparameters must be a int')
         if (nparameters <= 0):
@@ -285,7 +285,7 @@ class GradOptimizer:
         self.neval_objectives += 1
         
         rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0):
+        if (rank==0) and (self.outdir != None):
             np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist.txt')),self.objectives_hist)
             np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist.txt')),self.objective_hist)
             np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist.txt')),self.parameters_hist)
@@ -324,7 +324,7 @@ class GradOptimizer:
         self.neval_objectives_grad += 1
         
         rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0):
+        if (rank==0) and (self.outdir != None):
             np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)
         
         return objective_grad
@@ -413,7 +413,6 @@ class GradOptimizer:
             fopt (float): final ojective function value
             result (int): return value from scipy/nlopt providing
                 reason for termination
-            message (str): warning message from optimizer
         """
         self._test_x(x)
         self._test_scalar(ftol_abs,'ftol_abs')
@@ -430,11 +429,11 @@ class GradOptimizer:
                                        xtol_abs,xtol_rel,**kwargs)
         if (package == 'scipy'):
             self._test_method_scipy(method)
-            [xopt, fopt, result, message] = self.scipy_optimize(x,method,**kwargs)
+            [xopt, fopt, result] = self.scipy_optimize(x,method,**kwargs)
             
         # Save output 
         rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0):
+        if (rank==0) and (self.outdir != None):
             np.savetxt(str(pl.Path(self.outdir).joinpath('xopt.txt')),xopt)
             np.savetxt(str(pl.Path(self.outdir).joinpath('fopt.txt')),[fopt])
             np.savetxt(str(pl.Path(self.outdir).joinpath('result.txt')),[result])
@@ -443,7 +442,7 @@ class GradOptimizer:
             np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist.txt')),self.objective_hist)
             np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)
             
-        return xopt, fopt, result, message
+        return xopt, fopt, result
     
     def nlopt_objective(self, x, grad):
         """
@@ -659,7 +658,6 @@ class GradOptimizer:
             fopt (float): final ojective function value
             result (int): return value from scipy/nlopt providing
                 reason for termination
-            message (str): warning message from optimizer
         """
 
         self._test_method_scipy(method)
@@ -716,8 +714,7 @@ class GradOptimizer:
         xopt = OptimizeResult.x
         result = OptimizeResult.status
         fopt = OptimizeResult.fun
-        message = OptimizeResult.message
-        return xopt, fopt, result, message
+        return xopt, fopt, result
         
     def _test_x(self,x):
         """

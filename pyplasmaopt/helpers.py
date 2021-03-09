@@ -57,34 +57,56 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def get_flat_data(Nt_coils=4, Nt_ma=4, nfp=3, ppp=10, num_coils=3, copies=1):
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-
-    coil_data = np.loadtxt(os.path.join(dir_path, "data", "flat.dat"), delimiter=',')
-    #num_coils = 3
+def get_flat_data(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1): #kwargs are based on NCSX specs 
+    
     coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
-    for ic in range(num_coils):
-        coils[ic].coefficients[0][0] = coil_data[0, 6*ic + 1]
-        coils[ic].coefficients[1][0] = coil_data[0, 6*ic + 3]
-        coils[ic].coefficients[2][0] = coil_data[0, 6*ic + 5]
-        for io in range(0, Nt_coils):
-            coils[ic].coefficients[0][2*io+1] = coil_data[io+1, 6*ic + 0]
-            coils[ic].coefficients[0][2*io+2] = coil_data[io+1, 6*ic + 1]
-            coils[ic].coefficients[1][2*io+1] = coil_data[io+1, 6*ic + 2]
-            coils[ic].coefficients[1][2*io+2] = coil_data[io+1, 6*ic + 3]
-            coils[ic].coefficients[2][2*io+1] = coil_data[io+1, 6*ic + 4]
-            coils[ic].coefficients[2][2*io+2] = coil_data[io+1, 6*ic + 5]
-        coils[ic].update()
+    
+    field_period_angle = 2*np.pi/nfp #The angle occupied by each field period.
+    total_coils = 2*nfp*num_coils #Total number of coils in device assuming stellarator symmetry. 
+    shift = np.pi/total_coils #Half the angle between each coil in the device. This is the angle between the first coil in a field period and the \ 
+            # beginning of the field period itself, as well as the angle between the last field period and the end of the field period itself.  
+    phi_vals = np.linspace(shift, field_period_angle-shift, 2*num_coils, endpoint=True) #This gets the proper angles of each coil in the field period.  
+    phi_vals = phi_vals[:len(phi_vals)//2] #Due to stellarator symmetry, we only need the first half of the list - the other coils are generated \
+            # using stellaratory symmetry downstream. 
+    assert len(coils)==len(phi_vals) #Sanity check. 
 
+    #These Fourier coefficients come from expressing the coils in cylindrical coordinates. 
+    X0 = major_radius*np.cos(phi_vals)
+    Y0 = major_radius*np.sin(phi_vals)
+    Z0 = np.repeat(0,len(phi_vals))
+    X1 = minor_radius*np.cos(phi_vals)
+    Y1 = minor_radius*np.sin(phi_vals)
+    Z1 = np.repeat(minor_radius,len(phi_vals))
+
+    for ic in range(num_coils):
+        coils[ic].coefficients[0][0] = X0[ic]
+        coils[ic].coefficients[1][0] = Y0[ic]
+        coils[ic].coefficients[2][0] = Z0[ic]
+        coils[ic].coefficients[0][1] = 0 
+        coils[ic].coefficients[0][2] = X1[ic]
+        coils[ic].coefficients[1][1] = 0
+        coils[ic].coefficients[1][2] = Y1[ic]
+        coils[ic].coefficients[2][1] = Z1[ic]
+        coils[ic].coefficients[2][2] = 0
+        for io in range(2, Nt_coils):
+            coils[ic].coefficients[0][2*io-1] = 0
+            coils[ic].coefficients[0][2*io] = 0
+            coils[ic].coefficients[1][2*io-1] = 0
+            coils[ic].coefficients[1][2*io] = 0
+            coils[ic].coefficients[2][2*io-1] = 0
+            coils[ic].coefficients[2][2*io] = 0
+        coils[ic].update()
+    
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
     mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
     for j in range(copies):
-        mas[j].coefficients[0][0] = 1.
-        mas[j].coefficients[1][0] = 0.01
+        mas[j].coefficients[0][0] = major_radius
+        mas[j].coefficients[1][0] = 0
         mas[j].update()
-
-    currents = [6.14E+05/1.474]*num_coils #Stolen from NCSX, should be okay for initialization.
-    currents[0] += currents[0]/20 #Perturbation so the solver doesn't get stuck. #FIXME - remove? Might need to play with the weights if this gets stuck (first term too large).  
+    
+    total_current = 7497492.944369065 #From NCSX
+    currents = [total_current/total_coils]*num_coils #Total current in device is the same as in NCSX. 
+    #currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck. #FIXME - remove? Might need to play with the weights if this gets stuck (first term too large).  
 
     return (coils, mas, currents)
 

@@ -4,11 +4,14 @@ from .objective import BiotSavartQuasiSymmetricFieldDifference, CurveLength, Cur
 from .curve import GaussianSampler
 from .stochastic_objective import StochasticQuasiSymmetryObjective, CVaR
 from .logging import info
+from .qfm_surface import QfmSurface
+from .grad_optimizer import GradOptimizer
 
 from mpi4py import MPI
 from math import pi, sin, cos
 import numpy as np
 import os
+import pathlib as pl
 
 class NearAxisQuasiSymmetryObjective():
     def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25,
@@ -16,7 +19,9 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1, quasisym_weight=1
+                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
+                 qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
+                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4
                  ):
         num_stellarators = len(iota_target)
         self.num_stellarators = num_stellarators
@@ -83,6 +88,22 @@ class NearAxisQuasiSymmetryObjective():
         self.tikhonov_weight = tikhonov_weight
         self.arclength_weight = arclength_weight
         self.distance_weight = distance_weight
+        self.qfm_weight = qfm_weight
+        self.initial_qfm_opt = False
+        self.qfm_max_tries = qfm_max_tries
+        self.qfm_volume = qfm_volume
+        self.mmax = mmax
+        self.nmax = nmax
+        self.nfp = nfp
+        self.ntheta = ntheta
+        self.nphi = nphi
+        self.ftol_abs = ftol_abs 
+        self.ftol_rel = ftol_rel
+        self.xtol_abs = xtol_abs
+        self.xtol_rel = xtol_rel
+        self.package = package
+        self.method = method
+        self.major_radius = major_radius
 
         sampler = GaussianSampler(coils[0].points, length_scale=length_scale_perturb, sigma=sigma_perturb) #I think I can ignore this
         self.sampler = sampler#I think I can ignore this
@@ -177,7 +198,6 @@ class NearAxisQuasiSymmetryObjective():
         self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
         self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList])) 
         self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:, 0] for i in self.stellList]))
-
         if curvature_weight > 1e-15 and not self.freezeCoils:
             self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)
             self.drescoil += self.curvature_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_curvatures])
@@ -210,6 +230,47 @@ class NearAxisQuasiSymmetryObjective():
             self.drescoil += self.distance_weight * self.stellarator_group[0].reduce_coefficient_derivatives(self.J_distance.dJ_by_dcoefficients())
         else:
             self.res9 = 0
+
+        if self.qfm_weight > 1e-15:
+            if not self.initial_qfm_opt:  
+                runs = 1
+                success = False
+                while runs < self.qfm_max_tries:
+                    self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
+                    
+                    # Initialize parameters - circular cross section torus
+                    paramsInitR = np.zeros((self.qfm_group[0].mnmax)) #Should be fine
+                    paramsInitZ = np.zeros((self.qfm_group[0].mnmax)) #Should be fine
+                    
+                    approx_plasma_minor_radius = 1/np.pi*np.sqrt(self.qfm_volume/2/self.major_radius) #Minor radius of a torus
+                    paramsInitR[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) #FIXME?
+                    paramsInitZ[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
+                    
+                    paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
+
+                    info('Beginning QFM surface optimization - attempt %d.'%runs)
+                    try:
+                        #fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit) for i in self.stellList]
+                        fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                        success = True
+                        self.res10 = sum(fopts)
+                        break
+                    except RuntimeError:
+                        info('Optimization for given volume failed.')
+                        self.qfm_volume = self.qfm_volume/2
+                        runs += 1 
+                if not success:
+                    info('QFM surface not found for at least one stellarator!')
+                    quit()
+                info(f"Final QFM surface volume for each stellarator: {self.qfm_volume:.6e}")
+                np.savetxt(str(pl.Path(self.outdir).joinpath('qfm_volume.txt')),[self.qfm_volume])
+                self.initial_qfm_opt = True
+            else:
+                self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(outdir=self.outdir,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList])
+            self.drescoil += np.sum([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_coeffs() for i in self.stellList])
+            self.drescurrent += np.concatenate(([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_currents() for i in self.stellList])) 
+        else:
+            self.res10 = 0
 
         if self.tikhonov_weight > 1e-15:
             if self.num_stellarators != 1:
@@ -275,7 +336,8 @@ class NearAxisQuasiSymmetryObjective():
             else:
                 raise NotImplementedError
         
-        self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
+        #self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
+        self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res10])
         self.res = sum(self.Jvals_individual[-1])
         self.perturbed_vals = [self.res - self.res1 + r for r in self.QSvsBS_perturbed[-1]] #Not using 
 
@@ -339,7 +401,7 @@ class NearAxisQuasiSymmetryObjective():
         info(f"Iteration {iteration}")
         norm = np.linalg.norm
         info(f"Objective value:         {self.res:.6e}")
-        info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
+        info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res10:.6e}")
         if self.ninsamples > 0: #Ignore this whole section
             info(f"VaR(.1), Mean, VaR(.9):  {np.quantile(self.perturbed_vals, 0.1):.6e}, {np.mean(self.perturbed_vals):.6e}, {np.quantile(self.perturbed_vals, 0.9):.6e}")
             cvar90 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.9)))

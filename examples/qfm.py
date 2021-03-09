@@ -1,8 +1,7 @@
 """
 This script is used to compute a quadratic flux minimizing surface with 
-a given volume (default 1.0) for the NCSX coils, as well as information
-about the coils. This all is then fed into VMEC. The script only works
-for ONE stellarator at a time! 
+a given volume (default 1.0) for the input coils, as well as information
+about the coils. This all is then fed into VMEC. 
 """
 
 # Options
@@ -10,10 +9,11 @@ for ONE stellarator at a time!
 image_filetype = 'png' #Choose something that MatPlotLib can handle. 
 ## Poincare plot
 qfm_max_tries = 5
+#package = 'nlopt' #Choose 'nlopt' or 'scipy'
 poincare_max_tries = 5
 nperiods = 200 #Poincare plot setting
 batch_size = 4
-max_thickness = 0.9
+max_thickness = 0.25
 delta = 0.01
 spp = 120 #Poincare plot setting
 poincare_plot_name = 'poincare_w_qfm'
@@ -34,7 +34,7 @@ vmec_NITER = 5000
 vmec_NSTEP = 200
 vmec_TCON0 = 2.00E+00
 vmec_NS_ARRAY = '9 29 49 99'
-vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-1'
+vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12'
 vmec_LASYM = 'F'
 vmec_MPOL = 11
 vmec_NTOR = 6
@@ -84,7 +84,6 @@ parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--sourcedir", nargs='+', required=True)
 parser.add_argument("--outdir", type=str, required=False, default='') 
 parser.add_argument("--volume", type=float, required=False, default=1.0) # target volume
-#parser.add_argument("--volume", type=float, required=False, default=0.1) # target volume #FIXME
 parser.add_argument("--ppp", type=int, default=20)
 parser.add_argument("--Nt_ma", type=int, default=6)
 parser.add_argument("--Nt_coils", type=int, default=6)
@@ -94,6 +93,13 @@ parser.add_argument("--mmax", type=int, default=3) # maximum poloidal mode numbe
 parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
 parser.add_argument("--ntheta", type=int, default=20) # number of poloidal grid points for integration
 parser.add_argument("--nphi", type=int, default=20) # number of toroidal grid points for integration
+parser.add_argument("--maj_rad", type=float, default=1.4)
+parser.add_argument("--ftol_abs", type=float, default=1e-15)
+parser.add_argument("--ftol_rel", type=float, default=1e-15)
+parser.add_argument("--xtol_abs", type=float, default=1e-15)
+parser.add_argument("--xtol_rel", type=float, default=1e-15)
+parser.add_argument("--package", type=str, default='nlopt')
+parser.add_argument("--method", type=str, default='LBFGS')
 parser.add_argument("--noPoincare", action='store_true', required=False, default=False) #These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
@@ -102,6 +108,13 @@ parser.add_argument("--noBoozRun", action='store_true', required=False, default=
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
 args = parser.parse_args() 
+
+def var_assign(load,arg):
+    try:
+        loaded = np.loadtxt(str(pl.Path(sourcedir).joinpath('{:}.txt'.format(load))))
+        return loaded
+    except IOError:
+        return arg
 
 for sourceitem in args.sourcedir:
     sourcedir = str(pl.Path.cwd().joinpath(sourceitem).resolve())
@@ -113,18 +126,35 @@ for sourceitem in args.sourcedir:
     else:
         outdir = sourcedir
 
-    Nt_ma = args.Nt_ma
-    Nt_coils = args.Nt_coils
-    num_coils = args.num_coils
-    ppp = args.ppp
-    volume = args.volume
-    nfp = args.nfp
-    mmax = args.mmax
-    nmax = args.nmax
-    ntheta = args.ntheta
-    nphi = args.nphi
+    Nt_ma = int(var_assign('Nt_ma',args.Nt_ma))
+    Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
+    num_coils = int(var_assign('num_coils',args.num_coils))
+    ppp = int(var_assign('ppp',args.ppp))
+    volume = var_assign('qfm_volume',args.volume)
+    nfp = int(var_assign('nfp',args.nfp))
+    mmax = int(var_assign('mmax',args.mmax))
+    nmax = int(var_assign('nmax',args.nmax))
+    ntheta = int(var_assign('ntheta',args.ntheta))
+    nphi = int(var_assign('nphi',args.nphi))
+    maj_rad = float(var_assign('maj_rad',args.maj_rad))
+    ftol_abs = float(var_assign('ftol_abs',args.ftol_abs))
+    ftol_rel = float(var_assign('ftol_rel',args.ftol_rel))
+    xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
+    xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
+    old_xopt = var_assign('xopt',[])
     stellID = args.stellID
-   
+
+    try:
+        with open(str(pl.Path(sourcedir).joinpath('package.txt')),'r') as f:
+            package = f.read()
+    except FileNotFoundError:
+        package = args.package
+    try:
+        with open(str(pl.Path(sourcedir).joinpath('method.txt')),'r') as f:
+            method = f.read()
+    except FileNotFoundError:
+        method = args.method
+
     print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 
     with open(str(pl.Path(outdir).joinpath('postprocess_source.txt')),'w') as f:
@@ -139,35 +169,43 @@ for sourceitem in args.sourcedir:
 
     bs = BiotSavart(stellarator.coils, stellarator.currents)
 
-    qfm = QfmSurface(mmax, nmax, nfp, bs, ntheta, nphi, volume)
-    
-    objective = qfm.quadratic_flux
-    d_objective = qfm.d_quadratic_flux
-
-    # Initialize parameters - circular cross section torus
-    paramsInitR = np.zeros((qfm.mnmax))
-    paramsInitZ = np.zeros((qfm.mnmax))
-
-    paramsInitR[(qfm.xm==1)*(qfm.xn==0)]=0.188077/np.sqrt(volume) #FIXME
-    paramsInitZ[(qfm.xm==1)*(qfm.xn==0)]=-0.188077/np.sqrt(volume) #FIXME
-
-    paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
-
-    optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
-    optimizer.add_objective(objective,d_objective,1)
-    
-
     runs = 1
-    while runs < qfm_max_tries:
-        print('Beginning QFM surface optimization.')
-        (xopt, fopt, result, message) = optimizer.optimize(paramsInit,package='scipy',method='BFGS') 
-        if message != 'Desired error not necessarily achieved due to precision loss.':
+    while runs < qfm_max_tries: #FIXME this should converge immediately when loading xopt, but should you keep the loop for legacy reasons?
+        qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
+        
+        objective = qfm.quadratic_flux
+        d_objective = qfm.d_quadratic_flux
+
+        # Initialize parameters - xopt from optimization or circular cross section torus
+        if len(old_xopt)==0:
+            paramsInitR = np.zeros((qfm.mnmax))
+            paramsInitZ = np.zeros((qfm.mnmax))
+            
+            approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
+            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) #FIXME?
+            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
+
+            paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
+        else:
+            paramsInit = old_xopt
+        optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
+        optimizer.add_objective(objective,d_objective,1)
+    
+        print('Beginning QFM surface optimization - attempt %d.'%runs)
+        #(xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=1e-15,ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package=package,method='LBFGS')
+        if package=='scipy':
+            xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
+            success = (result == 0) or (result == 2)
+        else:
+            (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
+            success = result >= 0
+        if (success):
             break
         else:
-            print('Optimization failed. Running again with new parameters.')
+            print('Optimization for given volume failed.')
             volume = volume/2
             runs += 1 
-    if message == 'Desired error not necessarily achieved due to precision loss.':
+    if not (success):
         print('QFM surface not found!')
         quit()
     print('Final QFM surface volume: ', volume)

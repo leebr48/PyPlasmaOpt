@@ -61,7 +61,7 @@ def compute_field_lines(biotsavart, nperiods=200, batch_size=8, magnetic_axis_ra
     successes = 0
     while (i+1)*batch_size*delta < max_thickness:
         y0 = np.zeros((batch_size, 2))
-        y0[:, 0] = np.linspace(magnetic_axis_radius + i*batch_size*delta, magnetic_axis_radius+(i+1)*batch_size*delta, batch_size, endpoint=False)
+        y0[:, 0] = np.linspace(magnetic_axis_radius + i*batch_size*delta, magnetic_axis_radius + (i+1)*batch_size*delta, batch_size, endpoint=False)
         t = tspan[0]
         #solver = RK45(rhs, tspan[0], y0.flatten(), tspan[-1], rtol=1e-3, atol=1e-6) #FIXME
         solver = RK45(rhs, tspan[0], y0.flatten(), tspan[-1], rtol=1e-9, atol=1e-9) #FIXME
