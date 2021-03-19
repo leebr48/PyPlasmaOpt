@@ -95,7 +95,7 @@ def J_scipy(x):
     dres = obj.dres
     return res, dres
 
-res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, #FIXME - tol was 1e-15
+res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
                options={"maxiter": maxiter, "maxcor": memory},
                callback=obj.callback)
 

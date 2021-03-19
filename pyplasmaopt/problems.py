@@ -1,17 +1,19 @@
 from .biotsavart import BiotSavart
 from .quasi_symmetric_field import QuasiSymmetricField
-from .objective import BiotSavartQuasiSymmetricFieldDifference, CurveLength, CurveTorsion, CurveCurvature, SobolevTikhonov, UniformArclength, MinimumDistance
+from .objective import BiotSavartQuasiSymmetricFieldDifference, BiotSavartQuasiSymmetricFieldDifferenceRenormalized, CurveLength, CurveTorsion, CurveCurvature, SobolevTikhonov, UniformArclength, MinimumDistance #FIXME?
 from .curve import GaussianSampler
 from .stochastic_objective import StochasticQuasiSymmetryObjective, CVaR
 from .logging import info
 from .qfm_surface import QfmSurface
 from .grad_optimizer import GradOptimizer
+from .tangent_map import TangentMap
 
 from mpi4py import MPI
 from math import pi, sin, cos
 import numpy as np
 import os
 import pathlib as pl
+import copy
 
 class NearAxisQuasiSymmetryObjective():
     def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25,
@@ -19,32 +21,33 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
+                 outdir="output/", seed=1, freezeCoils=False, tanMap=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
-                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4
-                 ):
+                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4,
+                 renorm=False):
         num_stellarators = len(iota_target)
         self.num_stellarators = num_stellarators
         stellList = range(num_stellarators)
         self.stellList = stellList
         self.freezeCoils = freezeCoils
+        self.tanMap = tanMap
         self.iota_weight = iota_weight
         self.quasisym_weight = quasisym_weight
         self.stellarator_group = stellarators
         self.seed = seed
         self.ma_group = mas
-        bs = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList]
-        self.biotsavart_group = bs
+        self.biotsavart_group = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList] 
         for i in stellList:
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
-        qsf = [QuasiSymmetricField(eta_bar[i], self.ma_group[i]) for i in stellList] 
-        self.qsf_group = qsf
-        #sigma = qsf.sigma #Seems to not be used for anything
-        #iota = qsf.iota #Seems to not be used for anything
+        self.qsf_group = [QuasiSymmetricField(eta_bar[i], self.ma_group[i]) for i in stellList] 
         self.ninsamples = ninsamples
         self.noutsamples = noutsamples
+        self.tangentMap_group = [TangentMap(self.ma_group[i],self.stellarator_group[i]) for i in stellList]
 
-        self.J_BSvsQS          = [BiotSavartQuasiSymmetricFieldDifference(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
+        if renorm:
+            self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifferenceRenormalized(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
+        else:
+            self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifference(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
         coils = self.stellarator_group[0]._base_coils
         self.J_coil_lengths    = [CurveLength(coil) for coil in coils]
         self.J_axis_length     = [CurveLength(self.ma_group[i]) for i in stellList]
@@ -104,11 +107,13 @@ class NearAxisQuasiSymmetryObjective():
         self.package = package
         self.method = method
         self.major_radius = major_radius
+        self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
+        self.tanMap_resAxis_additionalWeight = 10 #Extra weight for the res_axis terms in the tanMap
 
         sampler = GaussianSampler(coils[0].points, length_scale=length_scale_perturb, sigma=sigma_perturb) #I think I can ignore this
         self.sampler = sampler#I think I can ignore this
 
-        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(self.stellarator_group[0], sampler, ninsamples, qsf, self.seed) #I think I can ignore this 
+        self.stochastic_qs_objective = StochasticQuasiSymmetryObjective(self.stellarator_group[0], sampler, ninsamples, self.qsf_group[0], self.seed) #I think I can ignore this 
         self.stochastic_qs_objective_out_of_sample = None #I think I can ignore this
 
         if mode in ["deterministic", "stochastic"]:
@@ -175,6 +180,7 @@ class NearAxisQuasiSymmetryObjective():
         curvature_weight             = self.curvature_weight 
         torsion_weight               = self.torsion_weight
         qsf_group = self.qsf_group #List
+        tanMap_group = self.tangentMap_group #List
 
         self.set_dofs(x) 
 
@@ -195,21 +201,37 @@ class NearAxisQuasiSymmetryObjective():
         self.res3    = np.sum([0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length[i].J() - magnetic_axis_length_target)**2 for i in self.stellList]) 
         self.dresma += np.concatenate(([(1/magnetic_axis_length_target)**2 * (J_axis_length[i].J()-magnetic_axis_length_target) * J_axis_length[i].dJ_by_dcoefficients() for i in self.stellList]))
 
-        self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
-        self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList])) 
-        self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:, 0] for i in self.stellList]))
-        if curvature_weight > 1e-15 and not self.freezeCoils:
+        if not self.tanMap:
+            self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
+            self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList])) 
+            self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:,0] for i in self.stellList]))
+        else:
+            old_points = copy.deepcopy([self.ma_group[i].points for i in self.stellList])
+            tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
+
+            self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.tanMap_resAxis_additionalWeight*tanMap_group[i].res_axis()) for i in self.stellList]) 
+            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dmagneticaxiscoeffs() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
+            self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dcoilcurrents() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]))
+            self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dcoilcoeffs() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
+
+            for i in self.stellList: #The tangent map sets the points to have length 1, so we have to reset them for the rest of the code to work properly.  
+                self.ma_group[i].points = old_points[i]
+                self.ma_group[i].update()
+                self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
+
+        if curvature_weight > self.ignore_tol and not self.freezeCoils:
             self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)
             self.drescoil += self.curvature_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_curvatures])
         else:
             self.res5 = 0
-        if torsion_weight > 1e-15 and not self.freezeCoils:
+        
+        if torsion_weight > self.ignore_tol and not self.freezeCoils:
             self.res6      = sum(torsion_weight * J.J() for J in J_coil_torsions)
             self.drescoil += self.torsion_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
         else:
             self.res6 = 0 
 
-        if self.sobolev_weight > 1e-15:
+        if self.sobolev_weight > self.ignore_tol:
             if self.num_stellarators != 1:
                 raise NotImplementedError
             self.res7 = sum(self.sobolev_weight * J.J() for J in self.J_sobolev_weights) #We're not using this anyway. 
@@ -219,19 +241,19 @@ class NearAxisQuasiSymmetryObjective():
         else:
             self.res7 = 0
 
-        if self.arclength_weight > 1e-15 and not self.freezeCoils:
+        if self.arclength_weight > self.ignore_tol and not self.freezeCoils:
             self.res8 = sum(self.arclength_weight * J.J() for J in self.J_arclength_weights)
             self.drescoil += self.arclength_weight * self.stellarator_group[0].reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
         else:
             self.res8 = 0
 
-        if self.distance_weight > 1e-15 and not self.freezeCoils:
+        if self.distance_weight > self.ignore_tol and not self.freezeCoils:
             self.res9 = self.distance_weight * self.J_distance.J()
             self.drescoil += self.distance_weight * self.stellarator_group[0].reduce_coefficient_derivatives(self.J_distance.dJ_by_dcoefficients())
         else:
             self.res9 = 0
 
-        if self.qfm_weight > 1e-15:
+        if self.qfm_weight > self.ignore_tol:
             if not self.initial_qfm_opt:  
                 runs = 1
                 success = False
@@ -263,7 +285,7 @@ class NearAxisQuasiSymmetryObjective():
                     info('QFM surface not found for at least one stellarator!')
                     quit()
                 info(f"Final QFM surface volume for each stellarator: {self.qfm_volume:.6e}")
-                np.savetxt(str(pl.Path(self.outdir).joinpath('qfm_volume.txt')),[self.qfm_volume])
+                np.savetxt(str(pl.Path(self.outdir).joinpath('qfm_volume.txt')),[self.qfm_volume]) #Overwrite old file if this portion of the code runs. 
                 self.initial_qfm_opt = True
             else:
                 self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(outdir=self.outdir,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList])
@@ -272,7 +294,7 @@ class NearAxisQuasiSymmetryObjective():
         else:
             self.res10 = 0
 
-        if self.tikhonov_weight > 1e-15:
+        if self.tikhonov_weight > self.ignore_tol:
             if self.num_stellarators != 1:
                 raise NotImplementedError
             self.res_tikhonov_weight = self.tikhonov_weight * np.sum((x-self.x0)**2) #Not using

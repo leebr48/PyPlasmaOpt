@@ -121,6 +121,196 @@ class BiotSavartQuasiSymmetricFieldDifference():
         res *= 1/arc_length.shape[0]
         return res
 
+class BiotSavartQuasiSymmetricFieldDifferenceRenormalized():
+
+    def __init__(self, quasi_symmetric_field, biotsavart): #DONE
+        # NOTE: J, K, L, and M standing alone below refer to chain rule terms, not the magnetic axis, the L2 norm, etc. 
+        self.quasi_symmetric_field = quasi_symmetric_field
+        self.biotsavart = biotsavart
+        self.Bbs = self.biotsavart.B # ( (number of points on axis), (Bx,By,Bz) )
+        self.Bqs = self.quasi_symmetric_field.B # ( (number of points on axis), (Bx,By,Bz) )
+        self.arc_length = self.quasi_symmetric_field.magnetic_axis.incremental_arclength[:,0] #Vector with TOTAL axis length as each element.
+        self.diff_arc_length = self.arc_length/self.arc_length.shape[0] #This makes each element the size of each integration interval (standard Riemann sum technique).  
+        self.dgamma_by_dphi = self.quasi_symmetric_field.magnetic_axis.dgamma_by_dphi[:,0,:] # ( (number of points on axis), (drx,dry,drz) )
+        self.dgamma_by_dphi_norm = np.einsum('ij->i',self.dgamma_by_dphi**2) # This factor is used a lot below. ( (number of points on axis) )
+        self.dgamma_by_dcoeff = self.quasi_symmetric_field.magnetic_axis.dgamma_by_dcoeff # ( (number of points on axis), (number of magnetic axis coefficients), (rx,ry,rz) )
+        self.d2gamma_by_dphidcoeff = self.quasi_symmetric_field.magnetic_axis.d2gamma_by_dphidcoeff[:, 0, :, :] # ( (number of points on axis), (number of magnetic axis coefficients), (drx,dry,drz) )
+        self.dBbs_by_dX = self.biotsavart.dB_by_dX # ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        self.num_coeff = self.dgamma_by_dcoeff.shape[1] # Number of magnetic axis coefficients?
+        self.dBqs_by_dX = self.quasi_symmetric_field.dB_by_dX # ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        #self.L2_obj_numerator = np.sum((self.Bqs-self.Bbs)**2 * self.diff_arc_length[:, None]) # $J$ in your notes 
+        #self.L2_norm_factor = np.sum(self.Bbs**2 * self.diff_arc_length[:,None]) # $K$ in your notes
+        #self.H1_obj_numerator = np.sum((self.dBqs_by_dX-self.dBbs_by_dX)**2 * self.diff_arc_length[:, None, None]) # $L$ in your notes 
+        #self.H1_norm_factor = np.sum(self.dBbs_by_dX**2 * self.diff_arc_length[:, None, None]) # $M$ in your notes 
+        self.L2_obj_numerator = np.einsum('aj,a->',(self.Bqs-self.Bbs)**2,self.diff_arc_length) # $J$ in your notes
+        self.L2_norm_factor = np.einsum('aj,a->',self.Bbs**2,self.diff_arc_length) # $K$ in your notes
+        self.H1_obj_numerator = np.einsum('ajk,a->',(self.dBqs_by_dX-self.dBbs_by_dX)**2,self.diff_arc_length) # $L$ in your notes
+        self.H1_norm_factor = np.einsum('ajk,a->',self.dBbs_by_dX**2,self.diff_arc_length) # $M$ in your notes
+
+    def J_L2(self): #FIXME same value each time - is that okay?
+        return self.L2_obj_numerator/self.L2_norm_factor
+
+    def dJ_L2_by_dcoilcoefficients(self): #Seems okay
+        dBbs_by_dcoilcoeff = self.biotsavart.dB_by_dcoilcoeffs # ( (number of coils), (number of points on axis), (number of coil coefficients), (Bx,By,Bz) )
+        temp_J = (self.Bbs-self.Bqs) * self.diff_arc_length[:, None] #dJ/dc_i [from notes] bits that are not in the derivative.
+        temp_K = self.Bbs * self.diff_arc_length[:, None] #dK/dc_i [from notes] bits that are not in the derivative. 
+        res = []
+        for dB in dBbs_by_dcoilcoeff: #For each coil...
+            dJ_dci = 2 * np.einsum('ij,ikj->k',temp_J,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
+            dK_dci = 2 * np.einsum('ij,ikj->k',temp_K,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
+            chain_ruled = (self.L2_norm_factor*dJ_dci-self.L2_obj_numerator*dK_dci)/self.L2_norm_factor**2
+            res.append(chain_ruled)
+        return res
+
+    def dJ_L2_by_dcoilcurrents(self): #Seems okay
+        dBbs_by_dcoilcurrents = self.biotsavart.dB_by_dcoilcurrents #( (number of coils), (number of points on axis), (Bx,By,Bz) )
+        temp_J = (self.Bbs-self.Bqs) * self.diff_arc_length[:, None] #dJ/dc_i [from notes] bits that are not in the derivative.
+        temp_K = self.Bbs * self.diff_arc_length[:, None] #dK/dc_i [from notes] bits that are not in the derivative.
+        res = []
+        for dB in dBbs_by_dcoilcurrents: #For each coil...
+            dJ_dci = 2 * np.einsum('ij,ij',temp_J,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
+            dK_dci = 2 * np.einsum('ij,ij',temp_K,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
+            chain_ruled = (self.L2_norm_factor*dJ_dci-self.L2_obj_numerator*dK_dci)/self.L2_norm_factor**2
+            res.append(chain_ruled)  
+        return res
+
+    def dJ_L2_by_dmagneticaxiscoefficients(self): #Seems okay
+        dBqs_by_dcoeffs = self.quasi_symmetric_field.dB_by_dcoeffs # ( (number of points on axis), (number of magnetic axis coefficients), (Bx,By,Bz) )
+        
+        #FIXME remove these chunks of notes in all blocks except __init__ once code is working properly
+        # dBbs_by_dX: ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        # dgamma_by_dcoeff: ( (number of points on axis), (number of magnetic axis coefficients), (rx,ry,rz) )
+        # d2gamma_by_dphidcoeff: ( (number of points on axis), (number of magnetic axis coefficients), (drx,dry,drz) )
+        # dgamma_by_dphi: ( (number of points on axis), (drx,dry,drz) )
+       
+        # dJ/dmi bits
+        term1_part1 = 2 * np.einsum('ij,ikj,i->k',self.Bqs-self.Bbs,dBqs_by_dcoeffs,self.diff_arc_length)
+        term1_part2_firstsum = np.einsum('ij->i',self.Bqs-self.Bbs)
+        term1_part2_secondsum = np.einsum('ikj,imk->im',self.dBbs_by_dX,self.dgamma_by_dcoeff) 
+        term1_part2 = -2 * np.einsum('i,ij,i->j',term1_part2_firstsum,term1_part2_secondsum,self.diff_arc_length)     
+        term1 = term1_part1 + term1_part2
+
+        term2_numerator = np.einsum('ij->i',(self.Bqs-self.Bbs)**2)
+        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff,self.dgamma_by_dphi)
+        term2 = np.einsum('i,i,ij,i->j',term2_numerator,1/self.dgamma_by_dphi_norm,term2_sum,self.diff_arc_length)
+
+        dJ_dmi = term1 + term2
+
+        # dK/dmi bits
+        term1_firstsum = np.einsum('ij->i',self.Bbs)
+        term1_secondsum = np.einsum('ikj,imk->im',self.dBbs_by_dX,self.dgamma_by_dcoeff) 
+        term1 = 2 * np.einsum('i,ij,i->j',term1_firstsum,term1_secondsum,self.diff_arc_length)
+
+        term2_numerator = np.einsum('ij->i',self.Bbs**2)
+        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff,self.dgamma_by_dphi)
+        term2 = np.einsum('i,i,ij,i->j',term2_numerator,1/self.dgamma_by_dphi_norm,term2_sum,self.diff_arc_length)
+        
+        dK_dmi = term1 + term2
+
+        # Chain rule
+        chain_ruled = (self.L2_norm_factor*dJ_dmi-self.L2_obj_numerator*dK_dmi)/self.L2_norm_factor**2
+
+        return chain_ruled
+
+    def dJ_L2_by_detabar(self): # FIXME RETURNS ZERO EVERY TIME
+        dBqs_by_detabar = self.quasi_symmetric_field.dB_by_detabar # ( (number of points on axis), (1), (Bx,By,Bz) )
+        
+        # dJ/dmi bits
+        dJ_dmi = 2 * np.einsum('ij,ikj,i->k',self.Bqs-self.Bbs,dBqs_by_detabar,self.diff_arc_length)
+
+        # dK/dmi bits
+        ## These become zero in this case
+
+        # Chain rule
+        chain_ruled = dJ_dmi/self.L2_norm_factor
+
+        return chain_ruled
+
+    def J_H1(self): #FIXME returns same value every time - problem?
+        return self.H1_obj_numerator/self.H1_norm_factor
+
+    def dJ_H1_by_dcoilcoefficients(self): #Seems okay
+        d2Bbs_by_dXdcoilcoeff = self.biotsavart.d2B_by_dXdcoilcoeffs # ( (number of coils), (number of points on axis), (number of coil coefficients), (dx,dy,dz), (Bx,By,Bz) )
+        temp_L = (self.dBbs_by_dX-self.dBqs_by_dX)*self.diff_arc_length[:, None, None]
+        temp_M = self.dBbs_by_dX*self.diff_arc_length[:, None, None]
+        res = []
+        for dB in d2Bbs_by_dXdcoilcoeff: # For each coil...
+            dL_dci = 2 * np.einsum('ijk,iljk->l', temp_L, dB) # Double sum/contraction and integral.
+            dM_dci = 2 * np.einsum('ijk,iljk->l', temp_M, dB) # Double sum/contraction and integral. 
+            chain_ruled = (self.H1_norm_factor*dL_dci-self.H1_obj_numerator*dM_dci)/self.H1_norm_factor**2
+            res.append(chain_ruled)
+        return res
+
+    def dJ_H1_by_dcoilcurrents(self): #Seems okay
+        d2Bbs_by_dXdcoilcurrents = self.biotsavart.d2B_by_dXdcoilcurrents # ( (number of coils), (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        res = []
+        for dB in d2Bbs_by_dXdcoilcurrents: # For each coil... 
+            dL_dci = 2 * np.einsum('ijk,ijk,i', self.dBbs_by_dX-self.dBqs_by_dX, dB, self.diff_arc_length)
+            dM_dci = 2 * np.einsum('ijk,ijk,i', self.dBbs_by_dX, dB, self.diff_arc_length)
+            chain_ruled = (self.H1_norm_factor*dL_dci-self.H1_obj_numerator*dM_dci)/self.H1_norm_factor**2 
+            res.append(chain_ruled)
+        return res
+
+    def dJ_H1_by_dmagneticaxiscoefficients(self): #Seems okay
+        #gamma                 = self.quasi_symmetric_field.magnetic_axis.gamma
+        d2Bqs_by_dcoeffsdX    = self.quasi_symmetric_field.d2B_by_dcoeffsdX # ( (number of points axis), (number of MA coeffs), (dx,dy,dz), (Bx,By,Bz) )
+        d2Bbs_by_dXdX         = self.biotsavart.d2B_by_dXdX # ( (number of points on axis), (dx,dy,dz), (dx,dy,dz), (Bx, By, Bz) )
+
+        #res = 2 * np.einsum('ijk,ijlk,iml,i->m',(self.dBbs_by_dX-self.dBqs_by_dX), d2Bbs_by_dXdX, self.dgamma_by_dcoeff, self.arc_length)
+        #res -= 2*np.einsum('ijk,imjk,i->m', (self.dBbs_by_dX-self.dBqs_by_dX), d2Bqs_by_dcoeffsdX, self.arc_length)
+        #res += np.einsum('i,i,iml,il->m', (1/self.arc_length), np.sum(np.sum((self.dBbs_by_dX-self.dBqs_by_dX)**2, axis=1), axis=1), self.d2gamma_by_dphidcoeff, self.dgamma_by_dphi)
+        #res *= 1/gamma.shape[0]
+
+
+        #self.dBbs_by_dX ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        #self.dBqs_by_dX ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        #self.dgamma_by_dcoeff ( (number of points on axis), (number of magnetic axis coefficients), (rx,ry,rz) )
+
+        # dL/dmi bits
+        term1_part1 = 2 * np.einsum('ajk,aijk,a->i',self.dBqs_by_dX-self.dBbs_by_dX,d2Bqs_by_dcoeffsdX,self.diff_arc_length)
+        term1_part2_innersum = np.einsum('ain,anjk->aijk',self.dgamma_by_dcoeff,d2Bbs_by_dXdX)
+        term1_part2 = -2 * np.einsum('ajk,aijk,a->i',self.dBqs_by_dX-self.dBbs_by_dX,term1_part2_innersum,self.diff_arc_length)
+        term1 = term1_part1 + term1_part2
+
+        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff,self.dgamma_by_dphi)
+        term2_numerator = np.einsum('ajk->a',(self.dBqs_by_dX-self.dBbs_by_dX)**2)
+        term2 = np.einsum('a,a,ai,a->i',term2_numerator,1/self.dgamma_by_dphi_norm,term2_sum,self.diff_arc_length)
+
+        dL_dmi = term1 + term2
+
+        # dM/dmi bits
+
+        term1_innersum = np.einsum('ain,anjk->aijk',self.dgamma_by_dcoeff,d2Bbs_by_dXdX)
+        term1 = 2 * np.einsum('ajk,aijk,a->i',self.dBbs_by_dX,term1_innersum,self.diff_arc_length)
+
+        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff,self.dgamma_by_dphi)
+        term2_numerator = np.einsum('ajk->a',self.dBbs_by_dX**2)
+        term2 = np.einsum('a,a,ai,a->i',term2_numerator,1/self.dgamma_by_dphi_norm,term2_sum,self.diff_arc_length)
+
+        dM_dmi = term1 + term2
+
+        # Chain rule
+        
+        chain_ruled = (self.H1_norm_factor*dL_dmi-self.H1_obj_numerator*dM_dmi)/self.H1_norm_factor**2
+
+        return chain_ruled
+
+    def dJ_H1_by_detabar(self): #Seems okay
+        d2Bqs_by_detabardX = self.quasi_symmetric_field.d2B_by_detabardX # ( (number of points on axis), (1), (dx,dy,dz), (Bx,By,Bz) )
+        
+        #res = np.zeros((1, ))
+        #res[0] -= np.sum(2*(self.dBbs_by_dX-self.dBqs_by_dX)*d2Bqs_by_detabardX[:, 0, :, :] * self.arc_length[:, None, None])
+        #res *= 1/self.arc_length.shape[0]
+        
+        #self.dBqs_by_dX ( (number of points on axis), (dx,dy,dz), (Bx,By,Bz) )
+        
+        # These expressions are much simpler since the magnetic axis does not depend on etabar. 
+
+        dL_dmi = 2 * np.einsum('ajk,adjk,a->d',self.dBqs_by_dX-self.dBbs_by_dX,d2Bqs_by_detabardX,self.diff_arc_length)
+
+        chain_ruled = dL_dmi/self.H1_norm_factor
+
+        return chain_ruled
 
 class SquaredMagneticFieldNormOnCurve(object):
 

@@ -12,8 +12,8 @@ def get_objective():
     parser.add_argument("--out", type=str, default="")
     parser.add_argument("--nfp", type=int, default=3)
     parser.add_argument("--ppp", type=int, default=20)
-    parser.add_argument("--Nt_ma", type=int, default=4)
-    parser.add_argument("--Nt_coils", type=int, default=4)
+    parser.add_argument("--Nt_ma", type=int, default=6)
+    parser.add_argument("--Nt_coils", type=int, default=6)
     parser.add_argument("--num_coils", type=int, default=3)
     parser.add_argument("--curv", type=float, default=0.)
     parser.add_argument("--tors", type=float, default=0.)
@@ -26,13 +26,14 @@ def get_objective():
     parser.add_argument("--QFM_wt", type=float, default=0)
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
+    parser.add_argument("--tanMap", action='store_true', default=False) #Compute iota using tangent map method. 
     parser.add_argument("--rld", type=str, required=False)
     parser.add_argument("--stellID", type=int, default=0)
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)
     parser.add_argument("--maj_rad", type=float, default=1.4)
-    parser.add_argument("--min_rad", type=float, default=0.33)
-    parser.add_argument("--qfm_vol", type=float, default=1.0)
+    parser.add_argument("--min_rad", type=float, default=0.33) # Minor radius of coils, not plasma 
+    parser.add_argument("--qfm_vol", type=float, default=2.959) # target volume
     parser.add_argument("--mmax", type=int, default=3) # maximum poloidal mode number for surface
     parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
     parser.add_argument("--ntheta", type=int, default=20) # number of poloidal grid points for integration
@@ -44,8 +45,9 @@ def get_objective():
     parser.add_argument("--ftol_rel", type=float, default=1e-15)
     parser.add_argument("--xtol_abs", type=float, default=1e-15)
     parser.add_argument("--xtol_rel", type=float, default=1e-15)
-    parser.add_argument("--package", type=str, default='nlopt')
-    parser.add_argument("--method", type=str, default='LBFGS')
+    parser.add_argument("--package", type=str, default='nlopt') # For QFM surface finder
+    parser.add_argument("--method", type=str, default='LBFGS') # For QFM surface finder 
+    parser.add_argument("--renorm", action='store_true', default=False)
     args = parser.parse_args()
 
     keys = list(args.__dict__.keys())
@@ -64,7 +66,7 @@ def get_objective():
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
     if args.rld:
-        for i in range(1, len(keys)-cutoff_number):
+        for i in range(1, len(keys)-cutoff_number-1):
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
         outdir += "_rld-True"
@@ -95,10 +97,12 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('ntheta.txt')),[args.ntheta])
     np.savetxt(str(pl.Path(outdir).joinpath('nphi.txt')),[args.nphi])
     np.savetxt(str(pl.Path(outdir).joinpath('maj_rad.txt')),[args.maj_rad])
+    np.savetxt(str(pl.Path(outdir).joinpath('min_rad.txt')),[args.min_rad])
     np.savetxt(str(pl.Path(outdir).joinpath('ftol_abs.txt')),[args.ftol_abs])
     np.savetxt(str(pl.Path(outdir).joinpath('ftol_rel.txt')),[args.ftol_rel])
     np.savetxt(str(pl.Path(outdir).joinpath('xtol_abs.txt')),[args.xtol_abs])
     np.savetxt(str(pl.Path(outdir).joinpath('xtol_rel.txt')),[args.xtol_rel])
+    np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[args.qfm_vol]) #This will be overwritten if the QFM surface is included in the optimization. 
 
     with open(str(pl.Path(outdir).joinpath('package.txt')),'w') as f:
         f.write(args.package)
@@ -110,10 +114,10 @@ def get_objective():
         with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
             f.write('{:}\n'.format(sourcedir))
             f.write('stellID: {:}'.format(args.stellID))
-        (coils, mas, currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
+        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
         eta_bar = np.repeat(eta_bar,num_stell)
     elif args.flat:
-        (coils, mas, currents) = get_flat_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad)
+        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad)
         eta_bar = np.repeat(1,num_stell)
     else:
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
@@ -130,8 +134,9 @@ def get_objective():
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
-        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, iota_weight=args.iota_wt,
+        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, iota_weight=args.iota_wt,
         quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
-        xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,major_radius=args.maj_rad)
+        xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,major_radius=args.maj_rad,
+        renorm=args.renorm)
     return obj, args

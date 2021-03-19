@@ -57,7 +57,7 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def get_flat_data(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1): #kwargs are based on NCSX specs 
+def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1): #kwargs are based on NCSX specs 
     
     coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
     
@@ -104,13 +104,15 @@ def get_flat_data(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=
         mas[j].coefficients[1][0] = 0
         mas[j].update()
     
-    total_current = 7497492.944369065 #From NCSX
-    currents = [total_current/total_coils]*num_coils #Total current in device is the same as in NCSX. 
-    #currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck. #FIXME - remove? Might need to play with the weights if this gets stuck (first term too large).  
+    #total_current = 7497492.944369065 #From NCSX
+    mu_nought = 4*np.pi*1e-7 #SI units 
+    coil_current = 2*np.pi*major_radius/mu_nought/total_coils #From Ampere's Law
+    currents = [coil_current]*num_coils #Total current in device is the same as in NCSX. 
+    #currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck. Probably not necessary.  
 
     return (coils, mas, currents)
 
-def reload_ncsx(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=0,num_coils=3,copies=1):
+def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=0,num_coils=3,copies=1):
     "Data for coils, currents, and the magnetic axis is pulled from sourcedir. \
             There is only need to input *unique* coils - the others will be created using CoilCollection as usual. \
             The function parameters have the same meaning as in get_ncsx_data. \

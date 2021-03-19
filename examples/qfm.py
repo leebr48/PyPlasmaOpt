@@ -13,7 +13,7 @@ qfm_max_tries = 5
 poincare_max_tries = 5
 nperiods = 200 #Poincare plot setting
 batch_size = 4
-max_thickness = 0.25
+#max_thickness = 0.25
 delta = 0.01
 spp = 120 #Poincare plot setting
 poincare_plot_name = 'poincare_w_qfm'
@@ -83,23 +83,24 @@ from vmec_output import VmecOutput
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--sourcedir", nargs='+', required=True)
 parser.add_argument("--outdir", type=str, required=False, default='') 
-parser.add_argument("--volume", type=float, required=False, default=1.0) # target volume
-parser.add_argument("--ppp", type=int, default=20)
-parser.add_argument("--Nt_ma", type=int, default=6)
-parser.add_argument("--Nt_coils", type=int, default=6)
-parser.add_argument("--num_coils", type=int, default=3)
-parser.add_argument("--nfp", type=int, default=3)
-parser.add_argument("--mmax", type=int, default=3) # maximum poloidal mode number for surface
-parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
-parser.add_argument("--ntheta", type=int, default=20) # number of poloidal grid points for integration
-parser.add_argument("--nphi", type=int, default=20) # number of toroidal grid points for integration
-parser.add_argument("--maj_rad", type=float, default=1.4)
-parser.add_argument("--ftol_abs", type=float, default=1e-15)
-parser.add_argument("--ftol_rel", type=float, default=1e-15)
-parser.add_argument("--xtol_abs", type=float, default=1e-15)
-parser.add_argument("--xtol_rel", type=float, default=1e-15)
-parser.add_argument("--package", type=str, default='nlopt')
-parser.add_argument("--method", type=str, default='LBFGS')
+parser.add_argument("--qfm_volume", type=float, required=False, default=None)
+parser.add_argument("--ppp", type=int, default=None)
+parser.add_argument("--Nt_ma", type=int, default=None)
+parser.add_argument("--Nt_coils", type=int, default=None)
+parser.add_argument("--num_coils", type=int, default=None)
+parser.add_argument("--nfp", type=int, default=None)
+parser.add_argument("--mmax", type=int, default=None)
+parser.add_argument("--nmax", type=int, default=None)
+parser.add_argument("--ntheta", type=int, default=None)
+parser.add_argument("--nphi", type=int, default=None)
+parser.add_argument("--maj_rad", type=float, default=None)
+parser.add_argument("--min_rad", type=float, default=None)
+parser.add_argument("--ftol_abs", type=float, default=None)
+parser.add_argument("--ftol_rel", type=float, default=None)
+parser.add_argument("--xtol_abs", type=float, default=None)
+parser.add_argument("--xtol_rel", type=float, default=None)
+parser.add_argument("--package", type=str, default=None)
+parser.add_argument("--method", type=str, default=None)
 parser.add_argument("--noPoincare", action='store_true', required=False, default=False) #These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
@@ -108,12 +109,46 @@ parser.add_argument("--noBoozRun", action='store_true', required=False, default=
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
 args = parser.parse_args() 
-
+'''
 def var_assign(load,arg):
     try:
         loaded = np.loadtxt(str(pl.Path(sourcedir).joinpath('{:}.txt'.format(load))))
         return loaded
     except IOError:
+        return arg
+'''
+
+def var_assign(load,arg):
+    if arg == None:
+        try:
+            fileToLoad = '{:}.txt'.format(load)
+            loaded = np.loadtxt(str(pl.Path(sourcedir).joinpath(fileToLoad)))
+            return loaded
+        except IOError:
+            print('File {:} not found, you must specify this parameter as an argument!'.format(fileToLoad))
+            quit()
+    else:
+        return arg
+'''
+def strVar_assign(load,arg):
+    try:
+        with open(str(pl.Path(sourcedir).joinpath('{:}.txt'.format(load))),'r') as f:
+            loaded = f.read()
+        return loaded
+    except FileNotFoundError:
+        return arg
+'''
+def strVar_assign(load,arg):
+    if arg == None:
+        try: 
+            fileToLoad = '{:}.txt'.format(load)
+            with open(str(pl.Path(sourcedir).joinpath(fileToLoad)),'r') as f:
+                loaded = f.read()
+            return loaded
+        except FileNotFoundError:
+            print('File {:} not found, you must specify this parameter as an argument!'.format(fileToLoad))
+            quit()
+    else:
         return arg
 
 for sourceitem in args.sourcedir:
@@ -130,30 +165,22 @@ for sourceitem in args.sourcedir:
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
     num_coils = int(var_assign('num_coils',args.num_coils))
     ppp = int(var_assign('ppp',args.ppp))
-    volume = var_assign('qfm_volume',args.volume)
+    volume = var_assign('qfm_volume',args.qfm_volume)
     nfp = int(var_assign('nfp',args.nfp))
     mmax = int(var_assign('mmax',args.mmax))
     nmax = int(var_assign('nmax',args.nmax))
     ntheta = int(var_assign('ntheta',args.ntheta))
     nphi = int(var_assign('nphi',args.nphi))
     maj_rad = float(var_assign('maj_rad',args.maj_rad))
+    min_rad = float(var_assign('min_rad',args.min_rad))
     ftol_abs = float(var_assign('ftol_abs',args.ftol_abs))
     ftol_rel = float(var_assign('ftol_rel',args.ftol_rel))
     xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
     xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
     old_xopt = var_assign('xopt',[])
     stellID = args.stellID
-
-    try:
-        with open(str(pl.Path(sourcedir).joinpath('package.txt')),'r') as f:
-            package = f.read()
-    except FileNotFoundError:
-        package = args.package
-    try:
-        with open(str(pl.Path(sourcedir).joinpath('method.txt')),'r') as f:
-            method = f.read()
-    except FileNotFoundError:
-        method = args.method
+    package = strVar_assign('package',args.package)
+    method = strVar_assign('method',args.method)
 
     print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 
@@ -163,51 +190,57 @@ for sourceitem in args.sourcedir:
 
     # Get the QFM surface
     #(unique_coils, ma, unique_currents) = get_ncsx_data(Nt_ma=Nt_ma, Nt_coils=Nt_coils, ppp=ppp)
-    (unique_coils, mas, unique_currents, eta_bar) = reload_ncsx(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
+    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
     ma = mas[0] #You should only be loading one stellarator at a time! 
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
 
     bs = BiotSavart(stellarator.coils, stellarator.currents)
-
-    runs = 1
-    while runs < qfm_max_tries: #FIXME this should converge immediately when loading xopt, but should you keep the loop for legacy reasons?
-        qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
         
-        objective = qfm.quadratic_flux
-        d_objective = qfm.d_quadratic_flux
-
-        # Initialize parameters - xopt from optimization or circular cross section torus
-        if len(old_xopt)==0:
+    magnetic_axis_radius = np.sum(ma.coefficients[0]) #First group is for R, second is for Z. First series is cosine and we calculate R at phi=0, so we can sum the coefficients to get R.  
+    
+    # Initialize parameters, or just load old xopt
+    if len(old_xopt)==0:
+        print('Using generic initial guess for QFM surface.')
+        runs = 1
+        while runs < qfm_max_tries:
+            qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
+            
+            objective = qfm.quadratic_flux
+            d_objective = qfm.d_quadratic_flux
+        
             paramsInitR = np.zeros((qfm.mnmax))
             paramsInitZ = np.zeros((qfm.mnmax))
             
-            approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
+            #approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
+            approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/magnetic_axis_radius) #Minor radius of a torus
             paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) #FIXME?
             paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
 
             paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
-        else:
-            paramsInit = old_xopt
-        optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
-        optimizer.add_objective(objective,d_objective,1)
-    
-        print('Beginning QFM surface optimization - attempt %d.'%runs)
-        #(xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=1e-15,ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package=package,method='LBFGS')
-        if package=='scipy':
-            xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
-            success = (result == 0) or (result == 2)
-        else:
-            (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
-            success = result >= 0
-        if (success):
-            break
-        else:
-            print('Optimization for given volume failed.')
-            volume = volume/2
-            runs += 1 
-    if not (success):
-        print('QFM surface not found!')
-        quit()
+
+            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
+            optimizer.add_objective(objective,d_objective,1)
+        
+            print('Beginning QFM surface optimization - attempt %d.'%runs)
+            #(xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=1e-15,ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package=package,method='LBFGS')
+            if package=='scipy':
+                xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
+                success = (result == 0) or (result == 2)
+            else:
+                (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
+                success = result >= 0
+            if (success):
+                break
+            else:
+                print('Optimization for given volume failed.')
+                volume = volume/2
+                runs += 1 
+        if not (success):
+            print('QFM surface not found!')
+            quit()
+    else:
+        print('Loading QFM surface from xopt.txt file.')
+        xopt = old_xopt
     print('Final QFM surface volume: ', volume)
     
     R,Z = qfm.position(xopt) # R and Z for the surface over ONE field period
@@ -219,19 +252,19 @@ for sourceitem in args.sourcedir:
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
         #magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
-        #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp) #FIXME
+        #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp)
         
-        magnetic_axis_radius = np.sum(ma.coefficients[0]) #First group is for R, second is for Z. First series is cosine and we calculate R at phi=0, so we can sum the coefficients to get R.  
+        max_thickness = min_rad #FIXME?
         
         runs = 1
         while runs < poincare_max_tries: 
             try:
-                rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp) #FIXME
+                rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp) 
                 break 
             except ValueError:
                 max_thickness = max_thickness/2
                 delta = delta/2
-                #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp) #FIXME
+                #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp)
                 runs += 1
                 print('Poincare plotting failed - rerunning with new parameters.')
                 continue
@@ -360,9 +393,9 @@ for sourceitem in args.sourcedir:
         f.write('  NVACSKIP   = {:}\n'.format(str(vmec_NVACSKIP)))
         f.write('  extcur     = {:}\n'.format(extcur)) 
         f.write('!----- Pressure Parameters ---------\n')
-        #f.write('  GAMMA     = 0.000000E+00\n')
-        #f.write('  BLOAT     = 1.000000E+00\n')
-        #f.write('  SPRES_PED = 1.00000000000000E+00\n')
+        #f.write('  GAMMA      = 0.000000E+00\n')
+        #f.write('  BLOAT      = 1.000000E+00\n')
+        #f.write('  SPRES_PED  = 1.00000000000000E+00\n')
         f.write('  AM         = {:}\n'.format(str(vmec_AM)))
         f.write('!----- Current/Iota Parameters -----\n')
         f.write('  CURTOR     = {:}\n'.format(str(vmec_CURTOR)))
