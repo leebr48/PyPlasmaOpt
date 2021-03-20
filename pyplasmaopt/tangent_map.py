@@ -3,7 +3,7 @@ import scipy.integrate
 from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMapVars():
-    def __init__(self,reg_rtol=1e-12, reg_atol=1e-12, reg_nphi=500, res_tol=1e-13, res_nphi=10000):
+    def __init__(self,reg_rtol=1e-12, reg_atol=1e-12, reg_nphi=500, res_tol=1e-7, res_nphi=100000):
         self.reg_rtol = reg_rtol
         self.reg_atol = reg_atol
         self.reg_nphi = reg_nphi
@@ -720,7 +720,7 @@ class TangentMap():
         else:
             raise RuntimeError('Error ocurred in integration of axis.')
 
-    def compute_axis(self,phi,tol=TangentMapVars().res_tol,verbose=0,max_nodes=1000000): #FIXME max_nodes was 100000
+    def compute_axis(self,phi,tol=TangentMapVars().res_tol,verbose=0,max_nodes=100000):
         """
         For biotsavart and magnetic_axis objects, compute rotational transform
             from tangent map by solving initial value problem.
