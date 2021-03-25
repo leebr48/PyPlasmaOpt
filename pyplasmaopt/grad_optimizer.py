@@ -13,7 +13,7 @@ A class used for gradient-based optimization
 """
 
 class GradOptimizer:
-    def __init__(self,nparameters,outdir=None,name='optimization'):
+    def __init__(self,nparameters,outdir=None,stellID=0,name='optimization'):
         if (isinstance(nparameters,int) == False):
             raise TypeError('nparameters must be a int')
         if (nparameters <= 0):
@@ -23,6 +23,7 @@ class GradOptimizer:
             
         self.nparameters = nparameters
         self.outdir = outdir
+        self.stellID = stellID
         self.name = name
         
         self.objectives = []
@@ -434,13 +435,13 @@ class GradOptimizer:
         # Save output 
         rank = MPI.COMM_WORLD.Get_rank()
         if (rank==0) and (self.outdir != None):
-            np.savetxt(str(pl.Path(self.outdir).joinpath('xopt.txt')),xopt)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('fopt.txt')),[fopt])
-            np.savetxt(str(pl.Path(self.outdir).joinpath('result.txt')),[result])
-            np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist.txt')),self.parameters_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist.txt')),self.objectives_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist.txt')),self.objective_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(self.stellID))),xopt)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('fopt_{:}.txt'.format(self.stellID))),[fopt])
+            np.savetxt(str(pl.Path(self.outdir).joinpath('result_{:}.txt'.format(self.stellID))),[result])
+            np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist_{:}.txt'.format(self.stellID))),self.parameters_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist_{:}.txt'.format(self.stellID))),self.objectives_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist_{:}.txt'.format(self.stellID))),self.objective_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist_{:}.txt'.format(self.stellID))),self.objectives_grad_norm_hist)
             
         return xopt, fopt, result
     

@@ -1,6 +1,6 @@
 from .biotsavart import BiotSavart
 from .quasi_symmetric_field import QuasiSymmetricField
-from .objective import BiotSavartQuasiSymmetricFieldDifference, BiotSavartQuasiSymmetricFieldDifferenceRenormalized, CurveLength, CurveTorsion, CurveCurvature, SobolevTikhonov, UniformArclength, MinimumDistance #FIXME?
+from .objective import BiotSavartQuasiSymmetricFieldDifference, BiotSavartQuasiSymmetricFieldDifferenceRenormalized, CurveLength, CurveTorsion, CurveCurvature, SobolevTikhonov, UniformArclength, MinimumDistance
 from .curve import GaussianSampler
 from .stochastic_objective import StochasticQuasiSymmetryObjective, CVaR
 from .logging import info
@@ -24,7 +24,7 @@ class NearAxisQuasiSymmetryObjective():
                  outdir="output/", seed=1, freezeCoils=False, tanMap=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
                  ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4,
-                 renorm=False):
+                 renorm=False, image_freq=250):
         num_stellarators = len(iota_target)
         self.num_stellarators = num_stellarators
         stellList = range(num_stellarators)
@@ -42,7 +42,7 @@ class NearAxisQuasiSymmetryObjective():
         self.qsf_group = [QuasiSymmetricField(eta_bar[i], self.ma_group[i]) for i in stellList] 
         self.ninsamples = ninsamples
         self.noutsamples = noutsamples
-        self.tangentMap_group = [TangentMap(self.ma_group[i],self.stellarator_group[i]) for i in stellList]
+        self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=False) for i in stellList] #FIXME - will change if you are constraining the axis
 
         if renorm:
             self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifferenceRenormalized(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
@@ -108,7 +108,8 @@ class NearAxisQuasiSymmetryObjective():
         self.method = method
         self.major_radius = major_radius
         self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
-        self.tanMap_resAxis_additionalWeight = 10 #Extra weight for the res_axis terms in the tanMap
+        self.tanMap_resAxis_additionalWeight = 100 #Extra weight for the res_axis terms in the tanMap #FIXME - might need to be deleted?
+        self.image_freq = image_freq
 
         sampler = GaussianSampler(coils[0].points, length_scale=length_scale_perturb, sigma=sigma_perturb) #I think I can ignore this
         self.sampler = sampler#I think I can ignore this
@@ -205,14 +206,18 @@ class NearAxisQuasiSymmetryObjective():
             self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
             self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList])) 
             self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:,0] for i in self.stellList]))
+            self.calc_iotas = [qsf_group[i].iota for i in self.stellList]
         else:
             old_points = copy.deepcopy([self.ma_group[i].points for i in self.stellList])
+            for i in self.stellList:
+                tanMap_group[i].update_solutions()
             tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
+            self.calc_iotas = tanMap_iota
 
             self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.tanMap_resAxis_additionalWeight*tanMap_group[i].res_axis()) for i in self.stellList]) 
-            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dmagneticaxiscoeffs() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
-            self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dcoilcurrents() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]))
-            self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * (tanMap_group[i].d_iota_dcoilcoeffs() + self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
+            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dmagneticaxiscoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
+            self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]))
+            self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
 
             for i in self.stellList: #The tangent map sets the points to have length 1, so we have to reset them for the rest of the code to work properly.  
                 self.ma_group[i].points = old_points[i]
@@ -273,7 +278,7 @@ class NearAxisQuasiSymmetryObjective():
                     info('Beginning QFM surface optimization - attempt %d.'%runs)
                     try:
                         #fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit) for i in self.stellList]
-                        fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                        fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
                         success = True
                         self.res10 = sum(fopts)
                         break
@@ -288,7 +293,7 @@ class NearAxisQuasiSymmetryObjective():
                 np.savetxt(str(pl.Path(self.outdir).joinpath('qfm_volume.txt')),[self.qfm_volume]) #Overwrite old file if this portion of the code runs. 
                 self.initial_qfm_opt = True
             else:
-                self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(outdir=self.outdir,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList])
+                self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList])
             self.drescoil += np.sum([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_coeffs() for i in self.stellList])
             self.drescurrent += np.concatenate(([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_currents() for i in self.stellList])) 
         else:
@@ -441,7 +446,7 @@ class NearAxisQuasiSymmetryObjective():
         info(f"Curvature Max: {max_curvature:.3e}; Mean: {mean_curvature:.3e}")
         info(f"Torsion   Max: {max_torsion:.3e}; Mean: {mean_torsion:.3e}")
         comm = MPI.COMM_WORLD
-        if ((iteration in list(range(6))) or iteration % 250 == 0) and comm.rank == 0:
+        if ((iteration in list(range(6))) or iteration % self.image_freq == 0) and comm.rank == 0:
             self.plot('iteration-%04i.png' % iteration)
         if iteration % 250 == 0 and self.noutsamples > 0: #Ignore this section
             oos_vals = self.compute_out_of_sample()[1]
@@ -455,10 +460,14 @@ class NearAxisQuasiSymmetryObjective():
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d import Axes3D
+        import matplotlib.cm as cm
         fig = plt.figure()
         ax = fig.add_subplot(1, 2, 1, projection="3d")
-        for i in range(0, len(self.stellarator_group[0].coils)): 
-            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
+        loopMax = len(self.stellarator_group[0].coils)
+        colors = cm.rainbow(np.linspace(0,1,loopMax))
+        for i in range(0, loopMax): 
+            #ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%loopMax]) 
+            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%loopMax]) 
         #for i in range(len(self.ma_group)):
         self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=90., azim=0)
@@ -466,8 +475,9 @@ class NearAxisQuasiSymmetryObjective():
         ax.set_ylim(-2, 2)
         ax.set_zlim(-1, 1)
         ax = fig.add_subplot(1, 2, 2, projection="3d")
-        for i in range(0, len(self.stellarator_group[0].coils)): 
-            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
+        for i in range(0, loopMax): 
+            #ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
+            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%loopMax]) 
         #for i in range(len(self.ma_group)):
         self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=0., azim=0)

@@ -136,9 +136,9 @@ for i,ma in enumerate(obj.ma_group):
             f.write('\n')
 
 for i,qsf in enumerate(obj.qsf_group):
-    save1 = obj.qsf_group[i].eta_bar
+    save1 = obj.qsf_group[i].eta_bar #FIXME does this need to be changed?
     np.savetxt(str(pl.Path(obj.outdir).joinpath('eta_bar_%d.txt'%i)), [save1],fmt='%.20f') 
-    save2 = obj.qsf_group[i].iota
+    save2 = obj.calc_iotas[i]
     np.savetxt(str(pl.Path(obj.outdir).joinpath('iota_ma_%d.txt'%i)), [save2],fmt='%.20f')
 
 np.savetxt(outdir + "xmin.txt", xmin)

@@ -745,7 +745,7 @@ class QfmSurface():
         
         return X,Y
 
-    def qfm_metric(self,paramsInit=None,outdir=None,gtol=1e-6,method='BFGS',package='scipy',**kwargs): 
+    def qfm_metric(self,paramsInit=None,outdir=None,stellID=0,gtol=1e-6,method='BFGS',package='scipy',**kwargs): 
         """
         Computes minimum of quadratic flux function beginning with initial guess
             paramsInit
@@ -764,7 +764,7 @@ class QfmSurface():
         if (len(paramsInit)!=2*self.mnmax-1):
             raise ValueError('paramsInit has incorrect length')
 
-        optimizer = GradOptimizer(len(paramsInit),outdir=outdir)
+        optimizer = GradOptimizer(len(paramsInit),outdir=outdir,stellID=stellID)
         optimizer.add_objective(self.quadratic_flux,self.d_quadratic_flux,1)
         #xopt, fopt, result = optimizer.optimize(paramsInit,package='scipy',method='BFGS')
         if package=='scipy':

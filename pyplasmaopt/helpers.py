@@ -57,7 +57,7 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1): #kwargs are based on NCSX specs 
+def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1, kick=False): #kwargs are based on NCSX specs 
     
     coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
     
@@ -107,8 +107,9 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
     #total_current = 7497492.944369065 #From NCSX
     mu_nought = 4*np.pi*1e-7 #SI units 
     coil_current = 2*np.pi*major_radius/mu_nought/total_coils #From Ampere's Law
-    currents = [coil_current]*num_coils #Total current in device is the same as in NCSX. 
-    #currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck. Probably not necessary.  
+    currents = [-1*coil_current]*num_coils #Normalized to give B=1 on the axis. The negative is for a sign convention used in the rest of the program.  
+    if kick:
+        currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck.
 
     return (coils, mas, currents)
 

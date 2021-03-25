@@ -11,10 +11,10 @@ def get_objective():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--out", type=str, default="")
     parser.add_argument("--nfp", type=int, default=3)
-    parser.add_argument("--ppp", type=int, default=20)
+    parser.add_argument("--num_coils", type=int, default=3)
     parser.add_argument("--Nt_ma", type=int, default=6)
     parser.add_argument("--Nt_coils", type=int, default=6)
-    parser.add_argument("--num_coils", type=int, default=3)
+    parser.add_argument("--ppp", type=int, default=20)
     parser.add_argument("--curv", type=float, default=0.)
     parser.add_argument("--tors", type=float, default=0.)
     parser.add_argument("--arclen", type=float, default=0.)
@@ -47,8 +47,13 @@ def get_objective():
     parser.add_argument("--xtol_rel", type=float, default=1e-15)
     parser.add_argument("--package", type=str, default='nlopt') # For QFM surface finder
     parser.add_argument("--method", type=str, default='LBFGS') # For QFM surface finder 
-    parser.add_argument("--renorm", action='store_true', default=False)
+    parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
+    parser.add_argument("--image", type=int, default=250) # How often images of stellarator should be written
+    parser.add_argument("--kick", action='store_true', default=False) # Add a perturbation to the currents when loading flat coils
     args = parser.parse_args()
+
+    if args.QFM_wt != float(0):
+        args.kick = True #FIXME - an initial perturbation seems helpful for making the QFM solver behave properly
 
     keys = list(args.__dict__.keys())
     cutoff_key = 'rld'
@@ -117,7 +122,7 @@ def get_objective():
         (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
         eta_bar = np.repeat(eta_bar,num_stell)
     elif args.flat:
-        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad)
+        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick)
         eta_bar = np.repeat(1,num_stell)
     else:
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
@@ -138,5 +143,5 @@ def get_objective():
         quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
         xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,major_radius=args.maj_rad,
-        renorm=args.renorm)
+        renorm=args.renorm,image_freq=args.image)
     return obj, args

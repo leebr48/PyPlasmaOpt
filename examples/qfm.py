@@ -177,7 +177,9 @@ for sourceitem in args.sourcedir:
     ftol_rel = float(var_assign('ftol_rel',args.ftol_rel))
     xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
     xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
-    old_xopt = var_assign('xopt',[])
+    old_xopt = var_assign('xopt_{:}'.format(args.stellID),None)
+    if not isinstance(old_xopt,np.ndarray):
+        old_xopt = []
     stellID = args.stellID
     package = strVar_assign('package',args.package)
     method = strVar_assign('method',args.method)
@@ -239,8 +241,9 @@ for sourceitem in args.sourcedir:
             print('QFM surface not found!')
             quit()
     else:
-        print('Loading QFM surface from xopt.txt file.')
+        print('Loading QFM surface from xopt file.')
         xopt = old_xopt
+        qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
     print('Final QFM surface volume: ', volume)
     
     R,Z = qfm.position(xopt) # R and Z for the surface over ONE field period
