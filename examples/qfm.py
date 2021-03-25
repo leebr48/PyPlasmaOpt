@@ -177,12 +177,13 @@ for sourceitem in args.sourcedir:
     ftol_rel = float(var_assign('ftol_rel',args.ftol_rel))
     xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
     xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
-    old_xopt = var_assign('xopt_{:}'.format(args.stellID),None)
-    if not isinstance(old_xopt,np.ndarray):
-        old_xopt = []
     stellID = args.stellID
     package = strVar_assign('package',args.package)
     method = strVar_assign('method',args.method)
+    try:
+        old_xopt = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
+    except:
+        old_xopt = []
 
     print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 
@@ -291,7 +292,7 @@ for sourceitem in args.sourcedir:
         plt.figure()
         for i in range(nparticles):
             plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.1)
-            plt.plot(R[0,:],Z[0,:])
+        plt.plot(R[0,:],Z[0,:])
         plt.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
         print('Poincare plot created.')
 

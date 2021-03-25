@@ -448,12 +448,27 @@ class NearAxisQuasiSymmetryObjective():
         comm = MPI.COMM_WORLD
         if ((iteration in list(range(6))) or iteration % self.image_freq == 0) and comm.rank == 0:
             self.plot('iteration-%04i.png' % iteration)
+            if self.qfm_weight > self.ignore_tol:
+                self.qfmPlot('qfmSurface',iteration)
         if iteration % 250 == 0 and self.noutsamples > 0: #Ignore this section
             oos_vals = self.compute_out_of_sample()[1]
             self.out_of_sample_values.append(oos_vals)
             info("Out of sample")
             info(f"VaR(.1), Mean, VaR(.9):  {np.quantile(oos_vals, 0.1):.6e}, {np.mean(oos_vals):.6e}, {np.quantile(oos_vals, 0.9):.6e}")
             info(f"CVaR(.9), CVaR(.95), Max:{np.mean(list(v for v in oos_vals if v >= np.quantile(oos_vals, 0.9))):.6e}, {np.mean(list(v for v in oos_vals if v >= np.quantile(oos_vals, 0.95))):.6e}, {max(oos_vals):.6e}")
+
+    def qfmPlot(self, title, iteration):
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        for i in self.stellList:
+            xopt = np.loadtxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(i))))
+            R,Z = self.qfm_group[i].position(xopt)
+            plt.figure()
+            plt.plot(R[0,:],Z[0,:])
+            plt.xlabel('R')
+            plt.ylabel('Z')
+            plt.savefig(str(pl.Path(self.outdir).joinpath(title+'_%i-%04i.png'%(i,iteration))),bbox_inches='tight')
 
     def plot(self, filename):
         import matplotlib
