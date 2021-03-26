@@ -21,7 +21,7 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False, tanMap=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
+                 outdir="output/", seed=1, freezeCoils=False, tanMap=False, constrained=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
                  ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4,
                  renorm=False, image_freq=250):
@@ -42,7 +42,8 @@ class NearAxisQuasiSymmetryObjective():
         self.qsf_group = [QuasiSymmetricField(eta_bar[i], self.ma_group[i]) for i in stellList] 
         self.ninsamples = ninsamples
         self.noutsamples = noutsamples
-        self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=False) for i in stellList] #FIXME - will change if you are constraining the axis
+        self.constrained = constrained
+        self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=constrained) for i in stellList]
 
         if renorm:
             self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifferenceRenormalized(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
@@ -214,11 +215,17 @@ class NearAxisQuasiSymmetryObjective():
             tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
             self.calc_iotas = tanMap_iota
 
-            self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.tanMap_resAxis_additionalWeight*tanMap_group[i].res_axis()) for i in self.stellList]) 
-            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dmagneticaxiscoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
-            self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]))
-            self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
+            if not self.constrained:
+                self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.tanMap_resAxis_additionalWeight*tanMap_group[i].res_axis()) for i in self.stellList]) 
+                self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dmagneticaxiscoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
+                self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]))
+                self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
 
+            else:
+                self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i])**2 for i in self.stellList]) 
+                self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() for i in self.stellList]))
+                self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() for i in self.stellList]) 
+                
             for i in self.stellList: #The tangent map sets the points to have length 1, so we have to reset them for the rest of the code to work properly.  
                 self.ma_group[i].points = old_points[i]
                 self.ma_group[i].update()

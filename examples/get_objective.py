@@ -26,7 +26,8 @@ def get_objective():
     parser.add_argument("--QFM_wt", type=float, default=0)
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
-    parser.add_argument("--tanMap", action='store_true', default=False) #Compute iota using tangent map method. 
+    parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
+    parser.add_argument("--cons", action='store_true', default=False) # Controls the 'constrained' switch in the tangent map class.  
     parser.add_argument("--rld", type=str, required=False)
     parser.add_argument("--stellID", type=int, default=0)
     parser.add_argument("--iter", type=int, default=10000)
@@ -139,7 +140,7 @@ def get_objective():
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
-        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, iota_weight=args.iota_wt,
+        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, constrained=args.cons, iota_weight=args.iota_wt,
         quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
         xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,major_radius=args.maj_rad,
