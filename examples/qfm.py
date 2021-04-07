@@ -7,6 +7,7 @@ about the coils. This all is then fed into VMEC.
 # Options
 ## All
 image_filetype = 'png' #Choose something that MatPlotLib can handle. 
+font_size = 20
 ## Poincare plot
 qfm_max_tries = 5
 #package = 'nlopt' #Choose 'nlopt' or 'scipy'
@@ -79,6 +80,8 @@ sys.path.append('/home/leebr48/ALPOpt/')
 from vmec_input import init_modes 
 from vmec_output import VmecOutput
 
+plt.rcParams['font.size'] = str(font_size)
+
 # Sort out the command line arguments 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--sourcedir", nargs='+', required=True)
@@ -109,14 +112,6 @@ parser.add_argument("--noBoozRun", action='store_true', required=False, default=
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
 args = parser.parse_args() 
-'''
-def var_assign(load,arg):
-    try:
-        loaded = np.loadtxt(str(pl.Path(sourcedir).joinpath('{:}.txt'.format(load))))
-        return loaded
-    except IOError:
-        return arg
-'''
 
 def var_assign(load,arg):
     if arg == None:
@@ -129,15 +124,7 @@ def var_assign(load,arg):
             quit()
     else:
         return arg
-'''
-def strVar_assign(load,arg):
-    try:
-        with open(str(pl.Path(sourcedir).joinpath('{:}.txt'.format(load))),'r') as f:
-            loaded = f.read()
-        return loaded
-    except FileNotFoundError:
-        return arg
-'''
+
 def strVar_assign(load,arg):
     if arg == None:
         try: 
@@ -565,7 +552,7 @@ for sourceitem in args.sourcedir:
 
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
         #plt.xlabel('Normalized toroidal flux')
-        plt.title(r'Fourier Harmonics of $\lvert B \rvert$ in Boozer Coordinates')
+        plt.title(r'Fourier Harmonics of $|B|$ in Boozer Coordinates')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
