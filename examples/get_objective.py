@@ -27,8 +27,8 @@ def get_objective():
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
-    parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class. #FIXME do you need this option any more?
     parser.add_argument("--rld", type=str, required=False) #NOTE: you can only reload one stellarator at a time! 
+    parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class. #FIXME do you need this option any more?
     parser.add_argument("--stellID", type=int, default=0)
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)

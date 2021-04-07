@@ -480,9 +480,10 @@ class NearAxisQuasiSymmetryObjective():
             R,Z = self.qfm_group[i].position(xopt)
             plt.figure()
             plt.plot(R[0,:],Z[0,:])
-            plt.xlabel('R')
-            plt.ylabel('Z')
+            plt.xlabel(r'$R$ (m)')
+            plt.ylabel(r'$Z$ (m)')
             plt.savefig(str(pl.Path(self.outdir).joinpath(title+'_%i-%04i.png'%(i,iteration))),bbox_inches='tight')
+            plt.close()
 
     def plot(self, filename):
         import matplotlib
@@ -492,11 +493,12 @@ class NearAxisQuasiSymmetryObjective():
         import matplotlib.cm as cm
         fig = plt.figure()
         ax = fig.add_subplot(1, 2, 1, projection="3d")
-        loopMax = len(self.stellarator_group[0].coils)
-        colors = cm.rainbow(np.linspace(0,1,loopMax))
-        for i in range(0, loopMax): 
+        numCoils = len(self.stellarator_group[0].coils)
+        numBaseCoils = len(self.stellarator_group[0]._base_coils)
+        colors = cm.rainbow(np.linspace(0,1,2*numBaseCoils))
+        for i in range(0, numCoils): 
             #ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%loopMax]) 
-            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%loopMax]) 
+            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%numBaseCoils]) 
         #for i in range(len(self.ma_group)):
         self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=90., azim=0)
@@ -504,9 +506,9 @@ class NearAxisQuasiSymmetryObjective():
         ax.set_ylim(-2, 2)
         ax.set_zlim(-1, 1)
         ax = fig.add_subplot(1, 2, 2, projection="3d")
-        for i in range(0, loopMax): 
+        for i in range(0, numCoils): 
             #ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator_group[0]._base_coils)]) 
-            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%loopMax]) 
+            ax = self.stellarator_group[0].coils[i].plot(ax=ax, show=False, color=colors[i%numBaseCoils]) 
         #for i in range(len(self.ma_group)):
         self.ma_group[0].plot(ax=ax, show=False, closed_loop=False)
         ax.view_init(elev=0., azim=0)
@@ -515,7 +517,6 @@ class NearAxisQuasiSymmetryObjective():
         ax.set_zlim(-1, 1)
         plt.savefig(self.outdir + filename, dpi=300)
         plt.close()
-
 
         if "DISPLAY" in os.environ:
             try:
