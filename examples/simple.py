@@ -88,16 +88,20 @@ if False:
 
 maxiter = args.iter
 memory = 200
+maxfun = args.iter * 100 #FIXME?
+iprint = -1
 
 def J_scipy(x):
-    obj.update(x)
-    res = obj.res
-    dres = obj.dres
-    return res, dres
+    try:
+        obj.update(x)
+        return obj.res, obj.dres
+    except RuntimeError as ex:
+        info(ex)
+        return 2*obj.res, -obj.dres
 
 res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
-               options={"maxiter": maxiter, "maxcor": memory},
-               callback=obj.callback)
+        options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint},
+               callback=obj.callback) #FIXME you added the ftol, gtol, and maxfun bits
 
 info("%s" % res)
 xmin = res.x

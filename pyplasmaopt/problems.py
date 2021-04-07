@@ -21,9 +21,9 @@ class NearAxisQuasiSymmetryObjective():
                  curvature_weight=1e-6, torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
                  minimum_distance=0.04, distance_weight=1.,
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, length_scale_perturb=0.2, mode="deterministic",
-                 outdir="output/", seed=1, freezeCoils=False, tanMap=False, constrained=False, iota_weight=1, quasisym_weight=1, qfm_weight=0,
+                 outdir="output/", seed=1, freezeCoils=False, tanMap=False, constrained=True, iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
-                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',major_radius=1.4,
+                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',xopt_rld=None,major_radius=1.4,
                  renorm=False, image_freq=250):
         num_stellarators = len(iota_target)
         self.num_stellarators = num_stellarators
@@ -108,6 +108,7 @@ class NearAxisQuasiSymmetryObjective():
         self.package = package
         self.method = method
         self.major_radius = major_radius
+        self.xopt_rld = xopt_rld
         self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
         self.tanMap_resAxis_additionalWeight = 100 #Extra weight for the res_axis terms in the tanMap #FIXME - might need to be deleted?
         self.image_freq = image_freq
@@ -222,9 +223,9 @@ class NearAxisQuasiSymmetryObjective():
                 self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList]) 
 
             else:
-                self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i])**2 for i in self.stellList]) 
+                self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i])**2 for i in self.stellList])  
                 self.drescurrent += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() for i in self.stellList]))
-                self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() for i in self.stellList]) 
+                self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() for i in self.stellList])
                 
             for i in self.stellList: #The tangent map sets the points to have length 1, so we have to reset them for the rest of the code to work properly.  
                 self.ma_group[i].points = old_points[i]
@@ -266,6 +267,12 @@ class NearAxisQuasiSymmetryObjective():
             self.res9 = 0
 
         if self.qfm_weight > self.ignore_tol:
+            if (self.xopt_rld is not None) and (not self.initial_qfm_opt):
+                self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
+                fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=self.xopt_rld[i],outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                self.res10 = sum(fopts)
+                info(f"QFM surface reloaded from previous run.")
+                self.initial_qfm_opt = True
             if not self.initial_qfm_opt:  
                 runs = 1
                 success = False
@@ -285,7 +292,7 @@ class NearAxisQuasiSymmetryObjective():
                     info('Beginning QFM surface optimization - attempt %d.'%runs)
                     try:
                         #fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit) for i in self.stellList]
-                        fopts = [self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                        fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
                         success = True
                         self.res10 = sum(fopts)
                         break

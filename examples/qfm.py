@@ -83,7 +83,7 @@ from vmec_output import VmecOutput
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--sourcedir", nargs='+', required=True)
 parser.add_argument("--outdir", type=str, required=False, default='') 
-parser.add_argument("--qfm_volume", type=float, required=False, default=None)
+parser.add_argument("--qfm_vol", type=float, required=False, default=None)
 parser.add_argument("--ppp", type=int, default=None)
 parser.add_argument("--Nt_ma", type=int, default=None)
 parser.add_argument("--Nt_coils", type=int, default=None)
@@ -165,7 +165,7 @@ for sourceitem in args.sourcedir:
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
     num_coils = int(var_assign('num_coils',args.num_coils))
     ppp = int(var_assign('ppp',args.ppp))
-    volume = var_assign('qfm_volume',args.qfm_volume)
+    volume = var_assign('qfm_volume',args.qfm_vol)
     nfp = int(var_assign('nfp',args.nfp))
     mmax = int(var_assign('mmax',args.mmax))
     nmax = int(var_assign('nmax',args.nmax))
@@ -293,6 +293,8 @@ for sourceitem in args.sourcedir:
         for i in range(nparticles):
             plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.1)
         plt.plot(R[0,:],Z[0,:])
+        plt.xlabel(r'$R$ (m)')
+        plt.ylabel(r'$Z$ (m)')
         plt.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
         print('Poincare plot created.')
 
@@ -438,9 +440,9 @@ for sourceitem in args.sourcedir:
         plt.figure()
         plt.plot(vmecOutput.s_full[1::],iota_full)
         plt.axhline(iota_pyplasmaopt,linestyle='--')
-        plt.xlabel('$\Psi_T/\Psi_T^{\mathrm{edge}}$')
-        plt.ylabel('$\iota$')
-        plt.legend(['VMEC','pyplasmaopt'])
+        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        plt.ylabel(r'$\iota$')
+        plt.legend(['VMEC','PyPlasmaOpt'])
         plt.savefig(str(pl.Path(outdir).joinpath(iota_compare_fig_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
         index = np.argmin((iota_full-iota_pyplasmaopt)**2)
@@ -477,9 +479,9 @@ for sourceitem in args.sourcedir:
             fig = plt.figure()
             plt.plot(R[iphi,:],Z[iphi,:]) 
             plt.plot(R_vmec[:,iphi],Z_vmec[:,iphi])
-            plt.xlabel('R')
-            plt.ylabel('Z')
-            plt.legend(['pyplasmaopt','VMEC'])
+            plt.xlabel(r'$R$ (m)')
+            plt.ylabel(r'$Z$ (m)')
+            plt.legend(['PyPlasmaOpt','VMEC'])
             plt.savefig(str(pl.Path(outdir).joinpath(profile_compare_name+str(figind)+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
             plt.close('all')
             figind += 1
@@ -528,21 +530,22 @@ for sourceitem in args.sourcedir:
 
         for imode in range(nmodes): # First, plot just the 1st mode of each type, so the legend looks nice.
             if ixn_b[imode]==0 and ixm_b[imode]==0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=backgroundColor,label='m = 0, n = 0 (Background)')
+                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=backgroundColor,label=r'$m = 0, n = 0$ (Background)')
                 break
         for imode in range(nmodes):
             if ixn_b[imode]==0 and ixm_b[imode]!=0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=QAColor,label=r'm $\ne$ 0, n = 0 (Quasiaxisymmetric)')
+                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=QAColor,label=r'$m \ne 0, n = 0$ (Quasiaxisymmetric)')
                 break
         for imode in range(nmodes):
             if ixn_b[imode]!=0 and ixm_b[imode]==0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mirrorColor,label=r'm = 0, n $\ne$ 0 (Mirror)')
+                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mirrorColor,label=r'$m = 0, n \ne 0$ (Mirror)')
                 break
         for imode in range(nmodes):
             if ixn_b[imode]!=0 and ixm_b[imode]!=0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'm $\ne$ 0, n $\ne$ 0 (Helical)')
+                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)')
                 break
-        plt.legend(fontsize=9,loc=2)
+        plt.legend(fontsize=9,loc='best')
+        #plt.legend(fontsize=9,loc=2)
         for imode in range(nmodes):
             if np.abs(ixm_b[imode]) > max_m:
                 continue
@@ -560,8 +563,9 @@ for sourceitem in args.sourcedir:
                     mycolor = helicalColor
             plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mycolor)
 
-        plt.xlabel('Normalized toroidal flux')
-        plt.title('Fourier harmonics of |B| in Boozer coordinates')
+        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        #plt.xlabel('Normalized toroidal flux')
+        plt.title(r'Fourier Harmonics of $\lvert B \rvert$ in Boozer Coordinates')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
 
@@ -578,7 +582,8 @@ for sourceitem in args.sourcedir:
             QA_metric[index] = np.sqrt(summed_nonQA/summed_total)
             
         plt.plot(s,QA_metric)
-        plt.xlabel('s')
-        plt.ylabel('QA metric')
+        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        #plt.xlabel('s')
+        plt.ylabel('QA Metric')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')

@@ -22,13 +22,13 @@ def get_objective():
     parser.add_argument("--dist_wt", type=float, default=0.)
     parser.add_argument("--iota_targ", type=float, nargs='*', default=[-0.395938929522566])
     parser.add_argument("--iota_wt", type=float, default=1.0)
-    parser.add_argument("--QS_wt", type=float, default=100.0) 
+    parser.add_argument("--QS_wt", type=float, default=1) 
     parser.add_argument("--QFM_wt", type=float, default=0)
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
-    parser.add_argument("--cons", action='store_true', default=False) # Controls the 'constrained' switch in the tangent map class.  
-    parser.add_argument("--rld", type=str, required=False)
+    parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class. #FIXME do you need this option any more?
+    parser.add_argument("--rld", type=str, required=False) #NOTE: you can only reload one stellarator at a time! 
     parser.add_argument("--stellID", type=int, default=0)
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)
@@ -51,10 +51,9 @@ def get_objective():
     parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
     parser.add_argument("--image", type=int, default=250) # How often images of stellarator should be written
     parser.add_argument("--kick", action='store_true', default=False) # Add a perturbation to the currents when loading flat coils
+    parser.add_argument("--mag", type=float, default=0.2) # Perturbation (kick) magnitude
+    parser.add_argument("--z0factr", type=float, default=4) # Additional perturbation in the z direction
     args = parser.parse_args()
-
-    if args.QFM_wt != float(0):
-        args.kick = True #FIXME - an initial perturbation seems helpful for making the QFM solver behave properly
 
     keys = list(args.__dict__.keys())
     cutoff_key = 'rld'
@@ -114,6 +113,8 @@ def get_objective():
         f.write(args.package)
     with open(str(pl.Path(outdir).joinpath('method.txt')),'w') as f:
         f.write(args.method)
+            
+    xopt_rld = None
 
     if args.rld:
         sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
@@ -122,8 +123,13 @@ def get_objective():
             f.write('stellID: {:}'.format(args.stellID))
         (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
         eta_bar = np.repeat(eta_bar,num_stell)
+        if args.QFM_wt > 0:
+            xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
+            xopt_rld = []
+            for i in range(num_stell):
+                xopt_rld.append(xopt_old)
     elif args.flat:
-        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick)
+        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr)
         eta_bar = np.repeat(1,num_stell)
     else:
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
@@ -143,6 +149,6 @@ def get_objective():
         mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, constrained=args.cons, iota_weight=args.iota_wt,
         quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
-        xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,major_radius=args.maj_rad,
+        xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,xopt_rld=xopt_rld,major_radius=args.maj_rad,
         renorm=args.renorm,image_freq=args.image)
     return obj, args

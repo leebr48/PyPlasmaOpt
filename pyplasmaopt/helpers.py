@@ -57,7 +57,7 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1, kick=False): #kwargs are based on NCSX specs 
+def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1, kick=False, magnitude=0.2, z0factr=4): #kwargs are based on NCSX specs 
     
     coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
     
@@ -71,12 +71,17 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
     assert len(coils)==len(phi_vals) #Sanity check. 
 
     #These Fourier coefficients come from expressing the coils in cylindrical coordinates. 
-    X0 = major_radius*np.cos(phi_vals)
-    Y0 = major_radius*np.sin(phi_vals)
-    Z0 = np.repeat(0,len(phi_vals))
     X1 = minor_radius*np.cos(phi_vals)
     Y1 = minor_radius*np.sin(phi_vals)
     Z1 = np.repeat(minor_radius,len(phi_vals))
+    if kick:
+        X0 = (major_radius + (minor_radius*magnitude)*np.cos(1*nfp*phi_vals))*np.cos(phi_vals)
+        Y0 = (major_radius + (minor_radius*magnitude)*np.cos(1*nfp*phi_vals))*np.sin(phi_vals)
+        Z0 = z0factr*magnitude*(minor_radius)*np.sin(1*nfp*phi_vals)
+    else:
+        X0 = major_radius*np.cos(phi_vals)
+        Y0 = major_radius*np.sin(phi_vals)
+        Z0 = np.repeat(0,len(phi_vals))
 
     for ic in range(num_coils):
         coils[ic].coefficients[0][0] = X0[ic]
@@ -102,14 +107,17 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
     for j in range(copies):
         mas[j].coefficients[0][0] = major_radius
         mas[j].coefficients[1][0] = 0
+        if kick:
+            mas[j].coefficients[0][1] =   minor_radius*magnitude
+            mas[j].coefficients[1][0] =   z0factr*minor_radius*magnitude
         mas[j].update()
     
     #total_current = 7497492.944369065 #From NCSX
     mu_nought = 4*np.pi*1e-7 #SI units 
     coil_current = 2*np.pi*major_radius/mu_nought/total_coils #From Ampere's Law
-    currents = [-1*coil_current]*num_coils #Normalized to give B=1 on the axis. The negative is for a sign convention used in the rest of the program.  
-    if kick:
-        currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck.
+    currents = [coil_current]*num_coils #Normalized to give B=1 on the axis.  
+    #if kick:
+    #    currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck.
 
     return (coils, mas, currents)
 
@@ -194,7 +202,6 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1):
 
     currents = [c/1.474 for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]] # normalise to get a magnetic field of around 1 at the axis
     return (coils, mas, currents)
-
 
 def get_16_coil_data(Nt=10, ppp=10, at_optimum=False):
     dir_path = os.path.dirname(os.path.realpath(__file__))

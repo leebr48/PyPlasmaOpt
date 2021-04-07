@@ -10,7 +10,7 @@ writable_cached_property = cached_property(writable=True)
 class QuasiSymmetricField(PropertyManager):
 
     def __init__(self, eta_bar, magnetic_axis):
-        self.fsolve_tol = 1e-10 #relaxed slightly from the original 1e-13
+        self.fsolve_tol = 1e-13
         self.s_G = 1
         self.B_0 = 1
         self.s_Psi = 1
@@ -350,11 +350,12 @@ class QuasiSymmetricField(PropertyManager):
                 count += 1
                 if count > 10:
                     warning("Newton failed: use fsolve")
+                    #soln = fsolve(build_residual, self.__state, fprime=build_jacobian, xtol=self.fsolve_tol)
                     full_soln = fsolve(build_residual, self.__state, fprime=build_jacobian, xtol=self.fsolve_tol, full_output=True)
                     soln = full_soln[0]
                     if full_soln[2] != 1:
                         print(full_soln[3])
-                        raise RuntimeError('fsolve failed to find a solution.') #FIXME - should this be active?
+                    #    raise RuntimeError('fsolve failed to find a solution.') #FIXME - should this be active?
                     break
 
         self.__state[:] = soln[:]

@@ -187,8 +187,6 @@ class BiotSavartQuasiSymmetricFieldDifferenceRenormalized():
         for dB in dBbs_by_dcoilcoeff: #For each coil...
             dJ_dci = 2 * np.einsum('ij,ikj->k',temp_J,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
             dK_dci = 2 * np.einsum('ij,ikj->k',temp_K,dB) #i sums over points on axis [integral], j sums over Bx,By,Bz (and derivatives) [dot product]
-            #dJ_dci = 2 * np.einsum('aj,aij,a->i',self.Bbs()-self.Bqs(),dB,self.diff_arc_length()) ################ #FIXME either change style of all sums to this, or remove commented bits
-            #dK_dci = 2 * np.einsum('aj,aij,a->i',self.Bbs(),dB,self.diff_arc_length()) ###############
             chain_ruled = (self.L2_norm_factor()*dJ_dci-self.L2_obj_numerator()*dK_dci)/self.L2_norm_factor()**2
             res.append(chain_ruled)
         return res
