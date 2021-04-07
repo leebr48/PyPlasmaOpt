@@ -169,6 +169,7 @@ for sourceitem in args.sourcedir:
     method = strVar_assign('method',args.method)
     try:
         old_xopt = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
+        volume = np.loadtxt(str(pl.Path(sourcedir).joinpath('qfm_volume.txt')))
     except:
         old_xopt = []
 
