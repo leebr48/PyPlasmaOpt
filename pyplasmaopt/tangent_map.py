@@ -3,10 +3,10 @@ import scipy.integrate
 from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMap():
-    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-13, atol=1e-13,
-                constrained=True,bvp_tol=1e-8,tol=1e-12,max_nodes=50000,
-                verbose=0,nphi_guess=100,nphi_integral=50000,
-                maxiter=500,axis_bvp=False,adjoint_axis_bvp=False,method='RK45'): #FIXME maxiter was 50 and max_nodes was 100000
+    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
+                constrained=True,bvp_tol=1e-8,tol=1e-10,max_nodes=50000,
+                verbose=0,nphi_guess=100,nphi_integral=1000,
+                maxiter=20,axis_bvp=False,adjoint_axis_bvp=True,method='RK45'): #FIXME these are Elizabeth's recommended settings 
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
@@ -102,7 +102,7 @@ class TangentMap():
         if (np.abs(trM/2)>1):
             raise RuntimeError('Incorrect value of trM.')
         else:
-            return -1*np.arccos(trM/2)/(2*np.pi) #FIXME added the -1 to match PPO sign convention
+            return np.arccos(trM/2)/(2*np.pi)
 
     def compute_tangent(self,phi,axis_poly=None,adjoint=False):
         """
