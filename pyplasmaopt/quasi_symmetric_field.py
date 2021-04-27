@@ -9,13 +9,14 @@ writable_cached_property = cached_property(writable=True)
 
 class QuasiSymmetricField(PropertyManager):
 
-    def __init__(self, eta_bar, magnetic_axis):
+    def __init__(self, eta_bar, magnetic_axis, N = 0):
         self.fsolve_tol = 1e-13
         self.s_G = 1
         self.B_0 = 1
         self.s_Psi = 1
         self.eta_bar = eta_bar
         self.magnetic_axis = magnetic_axis
+        self.N = N
         self.n = len(magnetic_axis.points)
         self.__state = np.zeros((self.n+1,))
         import scipy
@@ -162,10 +163,12 @@ class QuasiSymmetricField(PropertyManager):
         self.dB_by_dX = np.zeros((self.n, 3, 3))
         for j in range(3):
             nterm = s_Psi * G_0 * kappa * t[:, j] / B_0
-            nterm += (dX1c_dvarphi * Y1s + iota * X1c * Y1c) * n[:, j]
-            nterm += (dY1c_dvarphi * Y1s - dY1s_dvarphi * Y1c + s_Psi * G_0 * B_0 * torsion + iota*(Y1s**2 + Y1c**2)) * b[:, j]
-            bterm = (-s_Psi * G_0 * torsion/B_0 - iota * X1c**2) * n[:, j]
-            bterm += (X1c * dY1s_dvarphi - iota * X1c * Y1c) * b[:, j]
+            # Modified by EJP
+            nterm += (dX1c_dvarphi * Y1s + (iota - self.N) * X1c * Y1c) * n[:, j]
+            # Modified by EJP
+            nterm += (dY1c_dvarphi * Y1s - dY1s_dvarphi * Y1c + s_Psi * G_0 * B_0 * torsion + (iota - self.N)*(Y1s**2 + Y1c**2)) * b[:, j]
+            bterm = (-s_Psi * G_0 * torsion/B_0 - (iota - self.N) * X1c**2) * n[:, j]
+            bterm += (X1c * dY1s_dvarphi - (iota - self.N) * X1c * Y1c) * b[:, j]
             tterm = kappa * s_G * B_0 * n[:, j]
             self.dB_by_dX[:, j, :] = s_Psi * (B_0**2/abs(G_0)) * (nterm[:, None] * n + bterm[:, None] * b) + tterm[:, None] * t
 
@@ -225,17 +228,17 @@ class QuasiSymmetricField(PropertyManager):
             nterm = (d2X1c_dvarphidetabar * Y1s) * n[:, j]
             nterm += (dX1c_dvarphi * dY1s_by_detabar) * n[:, j]
             nterm += (diota_detabar * X1c * Y1c) * n[:, j]
-            nterm += (iota * dX1c_by_detabar * Y1c) * n[:, j]
-            nterm += (iota * X1c * dY1c_by_detabar) * n[:, j]
+            nterm += ((iota-self.N) * dX1c_by_detabar * Y1c) * n[:, j]
+            nterm += ((iota-self.N) * X1c * dY1c_by_detabar) * n[:, j]
 
             nterm += (d2Y1c_dvarphidetabar * Y1s - d2Y1s_dvarphidetabar * Y1c + diota_detabar*(Y1s**2 + Y1c**2)) * b[:, j]
-            nterm += (dY1c_dvarphi * dY1s_by_detabar - dY1s_dvarphi * dY1c_by_detabar + iota*(2*Y1s*dY1s_by_detabar + 2*Y1c*dY1c_by_detabar)) * b[:, j]
+            nterm += (dY1c_dvarphi * dY1s_by_detabar - dY1s_dvarphi * dY1c_by_detabar + (iota-self.N)*(2*Y1s*dY1s_by_detabar + 2*Y1c*dY1c_by_detabar)) * b[:, j]
 
             bterm = (-diota_detabar*X1c**2) * n[:, j]
-            bterm += (-iota*2*X1c*dX1c_by_detabar) * n[:, j]
+            bterm += (-(iota-self.N)*2*X1c*dX1c_by_detabar) * n[:, j]
             bterm += (dX1c_by_detabar * dY1s_dvarphi - diota_detabar * X1c * Y1c) * b[:, j]
-            bterm += (X1c * d2Y1s_dvarphidetabar - iota * dX1c_by_detabar * Y1c) * b[:, j]
-            bterm += (-iota * X1c * dY1c_by_detabar) * b[:, j]
+            bterm += (X1c * d2Y1s_dvarphidetabar - (iota-self.N) * dX1c_by_detabar * Y1c) * b[:, j]
+            bterm += (-(iota-self.N) * X1c * dY1c_by_detabar) * b[:, j]
             self.d2B_by_detabardX[:, 0, j, :] = s_Psi * (B_0**2/abs(G_0)) * (nterm[:, None] * n + bterm[:, None] * b)
 
         diota_by_dcoeffs = self.diota_by_dcoeffs
@@ -265,23 +268,23 @@ class QuasiSymmetricField(PropertyManager):
             for j in range(3):
                 dnterm_by_dcoeff = (s_Psi/B_0) * (dG_0_by_dcoeff * kappa * t[:, j] + G_0 * dkappa_by_dcoeff[:, i] * t[:, j] + G_0 * kappa * dt_by_dcoeff[:, i, j])
                 dnterm_by_dcoeff += d2X1c_dvarphidcoeff * Y1s * n[:, j] + dX1c_dvarphi * dY1s_by_dcoeff * n[:, j] + dX1c_dvarphi * Y1s * dn_by_dcoeff[:, i, j]
-                dnterm_by_dcoeff += diota_by_dcoeffs[i] * X1c * Y1c * n[:, j] + iota * dX1c_by_dcoeff * Y1c * n[:, j] + iota * X1c * dY1c_by_dcoeff * n[:, j] + iota * X1c * Y1c * dn_by_dcoeff[:, i, j]
+                dnterm_by_dcoeff += diota_by_dcoeffs[i] * X1c * Y1c * n[:, j] + (iota-self.N) * dX1c_by_dcoeff * Y1c * n[:, j] + (iota-self.N) * X1c * dY1c_by_dcoeff * n[:, j] + (iota-self.N) * X1c * Y1c * dn_by_dcoeff[:, i, j]
                 dnterm_by_dcoeff += d2Y1c_dvarphidcoeff * Y1s * b[:, j] + dY1c_dvarphi * dY1s_by_dcoeff * b[:, j] + dY1c_dvarphi * Y1s * db_by_dcoeff[:, i, j]
                 dnterm_by_dcoeff -= d2Y1s_dvarphidcoeff * Y1c * b[:, j] + dY1s_dvarphi * dY1c_by_dcoeff * b[:, j] + dY1s_dvarphi * Y1c * db_by_dcoeff[:, i, j]
                 dnterm_by_dcoeff += s_Psi * B_0 * (dG_0_by_dcoeff * torsion * b[:, j] + G_0 * dtorsion_by_dcoeff[:, i] * b[:, j] + G_0 * torsion * db_by_dcoeff[:, i, j])
-                dnterm_by_dcoeff += diota_by_dcoeffs[i]*(Y1s**2 + Y1c**2) * b[:, j] + iota*(2*dY1s_by_dcoeff * Y1s + 2*Y1c*dY1c_by_dcoeff) * b[:, j] + iota*(Y1s**2 + Y1c**2) * db_by_dcoeff[:, i, j]
+                dnterm_by_dcoeff += diota_by_dcoeffs[i]*(Y1s**2 + Y1c**2) * b[:, j] + (iota-self.N)*(2*dY1s_by_dcoeff * Y1s + 2*Y1c*dY1c_by_dcoeff) * b[:, j] + (iota-self.N)*(Y1s**2 + Y1c**2) * db_by_dcoeff[:, i, j]
 
                 nterm = s_Psi * G_0 * kappa * t[:, j] / B_0
-                nterm += (dX1c_dvarphi * Y1s + iota * X1c * Y1c) * n[:, j]
-                nterm += (dY1c_dvarphi * Y1s - dY1s_dvarphi * Y1c + s_Psi * G_0 * B_0 * torsion + iota*(Y1s**2 + Y1c**2)) * b[:, j]
+                nterm += (dX1c_dvarphi * Y1s + (iota-self.N) * X1c * Y1c) * n[:, j]
+                nterm += (dY1c_dvarphi * Y1s - dY1s_dvarphi * Y1c + s_Psi * G_0 * B_0 * torsion + (iota-self.N)*(Y1s**2 + Y1c**2)) * b[:, j]
 
                 dbterm_by_dcoeff = -(s_Psi/B_0) * (dG_0_by_dcoeff * torsion * n[:, j] + G_0 * dtorsion_by_dcoeff[:, i] * n[:, j] + G_0 * torsion * dn_by_dcoeff[:, i, j])
-                dbterm_by_dcoeff -= diota_by_dcoeffs[i] * X1c**2 * n[:, j] + iota * 2 * dX1c_by_dcoeff * X1c * n[:, j] + iota * X1c**2 * dn_by_dcoeff[:, i, j]
+                dbterm_by_dcoeff -= diota_by_dcoeffs[i] * X1c**2 * n[:, j] + (iota-self.N) * 2 * dX1c_by_dcoeff * X1c * n[:, j] + (iota-self.N) * X1c**2 * dn_by_dcoeff[:, i, j]
                 dbterm_by_dcoeff += dX1c_by_dcoeff * dY1s_dvarphi * b[:, j] + X1c * d2Y1s_dvarphidcoeff * b[:, j] + X1c * dY1s_dvarphi * db_by_dcoeff[:, i, j]
-                dbterm_by_dcoeff -= diota_by_dcoeffs[i] * X1c * Y1c * b[:, j] + iota * dX1c_by_dcoeff * Y1c * b[:, j] + iota * X1c * dY1c_by_dcoeff * b[:, j] + iota * X1c * Y1c * db_by_dcoeff[:, i, j]
+                dbterm_by_dcoeff -= diota_by_dcoeffs[i] * X1c * Y1c * b[:, j] + (iota-self.N) * dX1c_by_dcoeff * Y1c * b[:, j] + (iota-self.N) * X1c * dY1c_by_dcoeff * b[:, j] + (iota-self.N) * X1c * Y1c * db_by_dcoeff[:, i, j]
 
-                bterm = (-s_Psi * G_0 * torsion/B_0 - iota * X1c**2) * n[:, j]
-                bterm += (X1c * dY1s_dvarphi - iota * X1c * Y1c) * b[:, j]
+                bterm = (-s_Psi * G_0 * torsion/B_0 - (iota-self.N) * X1c**2) * n[:, j]
+                bterm += (X1c * dY1s_dvarphi - (iota-self.N) * X1c * Y1c) * b[:, j]
 
                 dtterm_by_dcoeff = s_G * B_0 * (dkappa_by_dcoeff[:, i] * n[:, j] + kappa  * dn_by_dcoeff[:, i, j])
                 tterm = kappa * s_G * B_0 * n[:, j]
@@ -308,7 +311,8 @@ class QuasiSymmetricField(PropertyManager):
             sigma = x[:-1]
             iota = x[-1]
             residual = np.zeros((n+1, ))
-            residual[:n] = fak1lD@sigma + iota * ((self.eta_bar/kappa)**4 + 1 + sigma**2) + fak2 * torsion / kappa**2
+            # EJP modified
+            residual[:n] = fak1lD@sigma + (iota - self.N) * ((self.eta_bar/kappa)**4 + 1 + sigma**2) + fak2 * torsion / kappa**2
             residual[-1] = sigma[0]
             return residual
 
@@ -317,7 +321,8 @@ class QuasiSymmetricField(PropertyManager):
             iota = x[-1]
             jacobian = np.zeros((n+1, n+1))
             jacobian[:n, :n] = fak1lD
-            np.fill_diagonal(jacobian[:n, :n], np.diagonal(jacobian[:n, :n]) + 2 * sigma * iota)
+            # EJP modified
+            np.fill_diagonal(jacobian[:n, :n], np.diagonal(jacobian[:n, :n]) + 2 * sigma * (iota - self.N))
             jacobian[:n, n] = ((self.eta_bar/kappa)**4 + 1 + sigma**2)
             jacobian[-1, 0] = 1
             return jacobian
@@ -367,7 +372,7 @@ class QuasiSymmetricField(PropertyManager):
         jacinv = np.linalg.inv(jac)
         """ Calculate dresidual_by_detabar """
         dresidual_by_detabar = np.zeros((n+1, 1))
-        dresidual_by_detabar[:n, 0] = iota * 4 * self.eta_bar**3 / kappa**4 + (4 * G_0 * self.eta_bar / (self.s_Psi * self.B_0)) * torsion / kappa**2
+        dresidual_by_detabar[:n, 0] = (iota-self.N) * 4 * self.eta_bar**3 / kappa**4 + (4 * G_0 * self.eta_bar / (self.s_Psi * self.B_0)) * torsion / kappa**2
 
 
         temp = jacinv @ dresidual_by_detabar
@@ -390,7 +395,7 @@ class QuasiSymmetricField(PropertyManager):
         dresidual_by_dcoeff = np.zeros((n+1, num_coeff))
         for i in range(num_coeff):
             dresidual_by_dcoeff[:n, i] = (dfak1_by_dcoeff[i]/l - fak1 * dl_by_dcoeff[:,i]/l**2)*(self.D@sigma) \
-                -4*iota * dkappa_by_dcoeff[:, i] * (self.eta_bar**4/kappa**5) \
+                -4*(iota-self.N) * dkappa_by_dcoeff[:, i] * (self.eta_bar**4/kappa**5) \
                 + dfak2_by_dcoeff[i] * torsion / kappa**2 + fak2 * dtorsion_by_dcoeff[:,i] / kappa**2 - 2*fak2*torsion*dkappa_by_dcoeff[:,i] / kappa**3
 
         temp = jacinv @ dresidual_by_dcoeff
