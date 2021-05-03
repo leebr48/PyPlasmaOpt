@@ -12,11 +12,11 @@ font_size = 18
 qfm_max_tries = 5
 #package = 'nlopt' #Choose 'nlopt' or 'scipy'
 poincare_max_tries = 5
-nperiods = 200 
+nperiods = 700 #200 
 batch_size = 4
-delta = 0.003 #0.01
+delta = 0.01
 spp = 120
-marker_size = 0.04
+marker_size = 0.01 #0.04
 marker_symbol = ','
 poincare_plot_name = 'poincare_w_qfm'
 ## CoilPy
