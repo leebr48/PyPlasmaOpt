@@ -288,6 +288,7 @@ class NearAxisQuasiSymmetryObjective():
                     paramsInitZ[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
                     
                     paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
+                    #paramsInit = [np.loadtxt(str(pl.Path.cwd().joinpath('xopt_init_{:}.txt'.format(str(i))).resolve())) for i in self.stellList] #FIXME get rid of this!!! And the paramsInit list below!!! 
 
                     info('Beginning QFM surface optimization - attempt %d.'%runs)
                     try:
@@ -376,7 +377,7 @@ class NearAxisQuasiSymmetryObjective():
                 self.drescvart   = self.cvar.dJ_dt(t, Jsamples)
             else:
                 raise NotImplementedError
-        
+       
         #self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
         self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res10])
         self.res = sum(self.Jvals_individual[-1])
