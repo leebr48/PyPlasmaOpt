@@ -115,7 +115,7 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
     #total_current = 7497492.944369065 #From NCSX
     mu_nought = 4*np.pi*1e-7 #SI units 
     coil_current = 2*np.pi*major_radius/mu_nought/total_coils #From Ampere's Law
-    currents = [coil_current]*num_coils #Normalized to give B=1 on the axis.  
+    currents = [-1*coil_current]*num_coils #Normalized to give B=1 on the axis.  
     #if kick:
     #    currents[0] += currents[0]/100 #Perturbation so the solver doesn't get stuck.
 

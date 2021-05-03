@@ -42,10 +42,10 @@ def get_objective():
     parser.add_argument("--at_opt", dest="at_optimum", default=False,action="store_true")
     parser.add_argument("--tik", type=float, default=0.)
     parser.add_argument("--sob", type=float, default=0.)
-    parser.add_argument("--ftol_abs", type=float, default=1e-15)
-    parser.add_argument("--ftol_rel", type=float, default=1e-15)
-    parser.add_argument("--xtol_abs", type=float, default=1e-15)
-    parser.add_argument("--xtol_rel", type=float, default=1e-15)
+    parser.add_argument("--ftol_abs", type=float, default=1e-10) #FIXME? was 1e-15
+    parser.add_argument("--ftol_rel", type=float, default=1e-10) #FIXME? was 1e-15
+    parser.add_argument("--xtol_abs", type=float, default=1e-10) #FIXME? was 1e-15
+    parser.add_argument("--xtol_rel", type=float, default=1e-10) #FIXME? was 1e-15
     parser.add_argument("--package", type=str, default='nlopt') # For QFM surface finder
     parser.add_argument("--method", type=str, default='LBFGS') # For QFM surface finder 
     parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
