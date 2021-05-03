@@ -526,59 +526,59 @@ class NearAxisQuasiSymmetryObjective():
         plt.savefig(self.outdir + filename, dpi=300)
         plt.close()
 
-         if "DISPLAY" in os.environ:
-             try:
-                 import mayavi.mlab as mlab
-             except ModuleNotFoundError:
-                 raise ModuleNotFoundError(
-                     "\n\nPlease install mayavi first. On a mac simply do \n" +
-                     "   pip3 install mayavi PyQT5\n" +
-                     "On Ubuntu run \n" +
-                     "   pip3 install mayavi\n" +
-                     "   sudo apt install python3-pyqt4\n\n"
-                 )
+    if "DISPLAY" in os.environ:
+        try:
+            import mayavi.mlab as mlab
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "\n\nPlease install mayavi first. On a mac simply do \n" +
+                "   pip3 install mayavi PyQT5\n" +
+                "On Ubuntu run \n" +
+                "   pip3 install mayavi\n" +
+                "   sudo apt install python3-pyqt4\n\n"
+                )
 
-             mlab.options.offscreen = True
-             colors = [
-                 (0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
-                 (0.8666666666666667, 0.5176470588235295, 0.3215686274509804),
-                 (0.3333333333333333, 0.6588235294117647, 0.40784313725490196),
-                 (0.7686274509803922, 0.3058823529411765, 0.3215686274509804),
-                 (0.5058823529411764, 0.4470588235294118, 0.7019607843137254),
-                 (0.5764705882352941, 0.47058823529411764, 0.3764705882352941),
-                 (0.8549019607843137, 0.5450980392156862, 0.7647058823529411),
-                 (0.5490196078431373, 0.5490196078431373, 0.5490196078431373),
-                 (0.8, 0.7254901960784313, 0.4549019607843137),
-                 (0.39215686274509803, 0.7098039215686275, 0.803921568627451)
-             ]
+        mlab.options.offscreen = True
+        colors = [
+            (0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
+            (0.8666666666666667, 0.5176470588235295, 0.3215686274509804),
+            (0.3333333333333333, 0.6588235294117647, 0.40784313725490196),
+            (0.7686274509803922, 0.3058823529411765, 0.3215686274509804),
+            (0.5058823529411764, 0.4470588235294118, 0.7019607843137254),
+            (0.5764705882352941, 0.47058823529411764, 0.3764705882352941),
+            (0.8549019607843137, 0.5450980392156862, 0.7647058823529411),
+            (0.5490196078431373, 0.5490196078431373, 0.5490196078431373),
+            (0.8, 0.7254901960784313, 0.4549019607843137),
+            (0.39215686274509803, 0.7098039215686275, 0.803921568627451)
+            ]
 
-             mlab.figure(bgcolor=(1, 1, 1))
-             for i in range(0, len(self.stellarator_group[0].coils)): 
-                 gamma = self.stellarator_group[0].coils[i].gamma
-                 gamma = np.concatenate((gamma, [gamma[0,:]]))
-                 mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[i%len(self.stellarator_group[0]._base_coils)])
+        mlab.figure(bgcolor=(1, 1, 1))
+        for i in range(0, len(self.stellarator_group[0].coils)): 
+            gamma = self.stellarator_group[0].coils[i].gamma
+            gamma = np.concatenate((gamma, [gamma[0,:]]))
+            mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[i%len(self.stellarator_group[0]._base_coils)])
 
-             gamma = self.ma_group[0].gamma
-             theta = 2*np.pi/self.ma_group[0].nfp
-             rotmat = np.asarray([
-                 [cos(theta), -sin(theta), 0],
-                 [sin(theta), cos(theta), 0],
-                 [0, 0, 1]]).T
-             gamma0 = gamma.copy()
-             for i in range(1, self.ma_group[0].nfp):
-                 gamma0 = gamma0 @ rotmat
-                 gamma = np.vstack((gamma, gamma0))
-             mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[len(self.stellarator_group[0]._base_coils)])
+        gamma = self.ma_group[0].gamma
+        theta = 2*np.pi/self.ma_group[0].nfp
+        rotmat = np.asarray([
+            [cos(theta), -sin(theta), 0],
+            [sin(theta), cos(theta), 0],
+            [0, 0, 1]]).T
+        gamma0 = gamma.copy()
+        for i in range(1, self.ma_group[0].nfp):
+            gamma0 = gamma0 @ rotmat
+            gamma = np.vstack((gamma, gamma0))
+        mlab.plot3d(gamma[:, 0], gamma[:, 1], gamma[:, 2], color=colors[len(self.stellarator_group[0]._base_coils)])
 
-             mlab.view(azimuth=0, elevation=0)
-             mlab.savefig(self.outdir + "mayavi_top_" + filename, magnification=4)
-             mlab.view(azimuth=0, elevation=90)
-             mlab.savefig(self.outdir + "mayavi_side1_" + filename, magnification=4)
-             mlab.view(azimuth=90, elevation=90)
-             mlab.savefig(self.outdir + "mayavi_side2_" + filename, magnification=4)
-             mlab.view(azimuth=45, elevation=45)
-             mlab.savefig(self.outdir + "mayavi_angled_" + filename, magnification=4)
-             mlab.close()
+        mlab.view(azimuth=0, elevation=0)
+        mlab.savefig(self.outdir + "mayavi_top_" + filename, magnification=4)
+        mlab.view(azimuth=0, elevation=90)
+        mlab.savefig(self.outdir + "mayavi_side1_" + filename, magnification=4)
+        mlab.view(azimuth=90, elevation=90)
+        mlab.savefig(self.outdir + "mayavi_side2_" + filename, magnification=4)
+        mlab.view(azimuth=45, elevation=45)
+        mlab.savefig(self.outdir + "mayavi_angled_" + filename, magnification=4)
+        mlab.close()
 
     def save_to_matlab(self, dirname):
         dirname = os.path.join(self.outdir, dirname)
