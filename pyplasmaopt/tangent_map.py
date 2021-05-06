@@ -4,9 +4,9 @@ from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-8, atol=1e-8,
-                constrained=True,bvp_tol=1e-7,tol=1e-8,max_nodes=5000,
+                constrained=True,bvp_tol=1e-6,tol=1e-8,max_nodes=50000,
                 verbose=0,nphi_guess=100,nphi_integral=1000,
-                maxiter=20,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME these are Elizabeth's recommended settings 
+                maxiter=20,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME bvp_tol was 1e-7, and 1e-5 seems to work okay with all other settings original. max_nodes was 5000
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
