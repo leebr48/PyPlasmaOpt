@@ -4,9 +4,9 @@ from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-8, atol=1e-8,
-                constrained=True,bvp_tol=1e-7,tol=1e-8,max_nodes=5000,
+                constrained=True,bvp_tol=1e-7,tol=1e-8,max_nodes=50000,
                 verbose=0,nphi_guess=100,nphi_integral=1000,
-                maxiter=20,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME these are Elizabeth's recommended settings 
+                maxiter=200,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME maxiter was 20
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
@@ -1447,3 +1447,44 @@ class TangentMap():
             d_V_by_dcoilcoeffs.append(d_V)
 
         return d_V_by_dcoilcoeffs
+
+    def ft_RZ(self,nfp=3,Nt=6,nphi=1000):
+        '''
+        Calculates the Fourier transform coefficients for R and Z
+        coordinates of the magnetic axis.
+        
+        Inputs:
+        nfp (int): the number of field periods in the device 
+            (NOTE: we assume stellarator symmetry holds)
+        Nt (int): number of harmonics to compute - Z will 
+            have (Nt) harmonics, and R will have (Nt+1)
+        nphi (1D array): number of toroidal angle values on 
+            which R and Z are evaluated
+
+        Outputs:
+        Rcoeffs (1D array): Fourier coefficients for R
+        Zcoeffs (1D array): Fourier coefficients for Z
+        '''
+
+        P = 2*np.pi/nfp # Period
+
+        phi = np.linspace(0, P, num=nphi, endpoint=True)
+        #diff_phi = np.repeat(P,nphi)/nphi
+        
+        R,Z = self.axis_poly(phi)
+        
+        Rcoeffs = np.zeros(Nt+1)
+        Zcoeffs = np.zeros(Nt)
+       
+        # These are just standard Fourier transform formulas
+
+        Rcoeffs[0] = 1/P * np.trapz(R,phi)
+        #Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
+
+        for k in range(1,Nt+1):
+            Rcoeffs[k] = 2/P * np.trapz(R*np.cos(2*np.pi/P*k*phi),phi)
+            Zcoeffs[k-1] = 2/P * np.trapz(Z*np.sin(2*np.pi/P*k*phi),phi)
+            #Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
+            #Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
+
+        return (Rcoeffs, Zcoeffs)

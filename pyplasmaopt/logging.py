@@ -53,4 +53,3 @@ error = logger.error
 sys.stdout = LoggerWriter(logger.warning)
 sys.stderr = LoggerWriter(logger.warning)
 '''
-
