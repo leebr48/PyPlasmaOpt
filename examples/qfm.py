@@ -6,7 +6,7 @@ about the coils. This all is then fed into VMEC.
 
 # Options
 ## All
-image_filetype = 'png' #Choose something that MatPlotLib can handle. 
+image_filetype = 'pdf' #Choose something that MatPlotLib can handle. 
 font_size = 18
 ## Poincare plot
 qfm_max_tries = 5
@@ -17,7 +17,7 @@ batch_size = 4
 delta = 0.01
 spp = 120
 marker_size = 0.01 #0.04
-marker_symbol = ','
+marker_symbol = '.'
 poincare_plot_name = 'poincare_w_qfm'
 ## CoilPy
 coils_file_suffix = 'pyplasmaopt'

@@ -14,7 +14,7 @@ handler.setFormatter(formatter)
 if comm is not None and comm.rank != 0:
     handler = logging.NullHandler()
 logger.addHandler(handler)
-
+'''
 class LoggerWriter:
     def __init__(self, level):
         # self.level is really like using log.debug(message)
@@ -33,7 +33,7 @@ class LoggerWriter:
         # sys.stderr is the correct way to do it, but it seemed
         # to work properly for me.
         self.level(sys.stderr)
-
+'''
 def set_file_logger(path):
     filename, file_extension = os.path.splitext(path)
     from math import log10, ceil
@@ -49,8 +49,8 @@ debug = logger.debug
 info = logger.info
 warning = logger.warning
 error = logger.error
-
+'''
 sys.stdout = LoggerWriter(logger.warning)
 sys.stderr = LoggerWriter(logger.warning)
-
+'''
 
