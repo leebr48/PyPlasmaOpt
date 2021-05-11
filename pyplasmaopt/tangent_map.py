@@ -6,7 +6,7 @@ class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-8, atol=1e-8,
                 constrained=True,bvp_tol=1e-7,tol=1e-8,max_nodes=50000,
                 verbose=0,nphi_guess=100,nphi_integral=1000,
-                maxiter=200,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME maxiter was 20
+                maxiter=200,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME maxiter was 20 
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
@@ -1448,9 +1448,9 @@ class TangentMap():
 
         return d_V_by_dcoilcoeffs
 
-    def ft_RZ(self,nfp=3,Nt=6,nphi=1000):
+    def ft_RZ(self,nfp=3,Nt=6,nphi=10000):
         '''
-        Calculates the Fourier transform coefficients for R and Z
+        Calculates the Fourier coefficients for the R and Z
         coordinates of the magnetic axis.
         
         Inputs:
