@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from .curve import CartesianFourierCurve, StelleratorSymmetricCylindricalFourierCurve
+from .curve import CartesianFourierCurve, StellaratorSymmetricCylindricalFourierCurve
 
 def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -27,7 +27,7 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
     numpoints = (Nt_ma+1)*ppp
     if numpoints % 2 == 0:
         numpoints += 1
-    ma = StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
+    ma = StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
     if at_optimum:
         ma.coefficients[0][0] = 0.976141492438223
         ma.coefficients[0][1] = 0.112424048908878
@@ -103,7 +103,7 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
         coils[ic].update()
     
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
+    mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
     for j in range(copies):
         mas[j].coefficients[0][0] = major_radius
         mas[j].coefficients[1][0] = 0
@@ -155,7 +155,7 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=0,num_coils
             ma_raw.append(linelist)
 
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
+    mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
 
     for j in range(copies):
         for ind1 in range(len(ma_raw)):
@@ -190,7 +190,7 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1):
         coils[ic].update()
 
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    mas = [StelleratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
+    mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
     cR = [1.471415400740515, 0.1205306261840785, 0.008016125223436036, -0.000508473952304439, -0.0003025251710853062, -0.0001587936004797397, 3.223984137937924e-06, 3.524618949869718e-05, 2.539719080181871e-06, -9.172247073731266e-06, -5.9091166854661e-06, -2.161311017656597e-06, -5.160802127332585e-07, -4.640848016990162e-08, 2.649427979914062e-08, 1.501510332041489e-08, 3.537451979994735e-09, 3.086168230692632e-10, 2.188407398004411e-11, 5.175282424829675e-11, 1.280947310028369e-11, -1.726293760717645e-11, -1.696747733634374e-11, -7.139212832019126e-12, -1.057727690156884e-12, 5.253991686160475e-13]
     sZ = [0.06191774986623827, 0.003997436991295509, -0.0001973128955021696, -0.0001892615088404824, -2.754694372995494e-05, -1.106933185883972e-05, 9.313743937823742e-06, 9.402864564707521e-06, 2.353424962024579e-06, -1.910411249403388e-07, -3.699572817752344e-07, -1.691375323357308e-07, -5.082041581362814e-08, -8.14564855367364e-09, 1.410153957667715e-09, 1.23357552926813e-09, 2.484591855376312e-10, -3.803223187770488e-11, -2.909708414424068e-11, -2.009192074867161e-12, 1.775324360447656e-12, -7.152058893039603e-13, -1.311461207101523e-12, -6.141224681566193e-13, -6.897549209312209e-14]
     for j in range(copies):
@@ -226,7 +226,7 @@ def get_16_coil_data(Nt=10, ppp=10, at_optimum=False):
         coils[ic].update()
 
     numpoints = Nt*ppp+1 if ((Nt*ppp) % 2 == 0) else Nt*ppp
-    ma = StelleratorSymmetricCylindricalFourierCurve(Nt, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
+    ma = StellaratorSymmetricCylindricalFourierCurve(Nt, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False))
     if at_optimum:
         cR = [0.9887541046929726, -0.06417041409876031, 0.003406984842399879, -0.0002514580242225735, 1.658763311687643e-05, 9.556657435185027e-07, 1.707789451832579e-06, -2.400300429615985e-06, 6.294898825757447e-07, -2.687657374685065e-08]
         sZ = [0.08362053602444068, -0.004570833875474779, 0.0004718058320629744, -6.189245571232168e-05, 3.502857537408366e-06, 2.261126291442485e-06, -2.724550974886944e-06, 6.148016216008801e-07, -8.573492987696066e-08]

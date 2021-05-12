@@ -141,7 +141,7 @@ def get_objective():
     magnetic_axis_length_target = None
 
     obj = NearAxisQuasiSymmetryObjective(
-        stellarators, mas, iota_target, eta_bar=eta_bar,
+        stellarators, mas, iota_target, eta_bar=eta_bar, Nt_ma=args.Nt_ma,
         coil_length_target=coil_length_target, magnetic_axis_length_target=magnetic_axis_length_target,
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,

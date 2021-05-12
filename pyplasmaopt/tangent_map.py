@@ -9,7 +9,7 @@ class TangentMap():
                 maxiter=200,axis_bvp=False,adjoint_axis_bvp=True,method='BDF'): #FIXME maxiter was 20 
         """
         stellarator: instance of CoilCollection representing modular coils
-        magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
+        magnetic_axis: instance of StellaratorSymmetricCylindricalFourierCurve
             representing magnetic axis
         rtol (double): relative tolerance for IVP
         atol (double): absolute tolerance for IVP

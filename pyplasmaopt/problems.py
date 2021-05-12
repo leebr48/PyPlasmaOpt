@@ -16,7 +16,7 @@ import pathlib as pl
 import copy
 
 class NearAxisQuasiSymmetryObjective():
-    def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25,
+    def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25, Nt_ma=6,
                  coil_length_target=None, magnetic_axis_length_target=None,
                  coil_length_weight=1, ma_length_weight=1, curvature_weight=1e-6, 
                  torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., 
@@ -34,6 +34,7 @@ class NearAxisQuasiSymmetryObjective():
         self.stellList = stellList
         self.freezeCoils = freezeCoils
         self.tanMap = tanMap
+        self.Nt_ma = Nt_ma
         self.iota_weight = iota_weight
         self.quasisym_weight = quasisym_weight
         self.stellarator_group = stellarators
@@ -74,18 +75,50 @@ class NearAxisQuasiSymmetryObjective():
         self.torsion_weight               = torsion_weight
         self.num_ma_dofs = len(self.ma_group[0].get_dofs())  
         self.current_fak = 1./(4 * pi * 1e-7)
+        
+
+        self.eta_bar_idxs = (0,self.num_stellarators)
+        self.current_dof_idxs = (self.eta_bar_idxs[1], self.eta_bar_idxs[1] + self.num_stellarators*len(self.stellarator_group[0].get_currents()))
+        if not self.tanMap:
+            self.ma_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + self.num_stellarators*self.num_ma_dofs)
+        else:
+            self.ma_dof_idxs = self.current_dof_idxs
+        self.coil_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + len(self.stellarator_group[0].get_dofs()))
+
+
+
+        '''
         self.eta_bar_idxs = (0,self.num_stellarators)
         self.ma_dof_idxs = (self.eta_bar_idxs[1], self.eta_bar_idxs[1] + self.num_stellarators*self.num_ma_dofs) 
         self.current_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + self.num_stellarators*len(self.stellarator_group[0].get_currents()))
         self.coil_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + len(self.stellarator_group[0].get_dofs()))
+        '''
+        
+
         if mode in ["deterministic", "stochastic"]:
             eta_bar_cat = [self.qsf_group[i].eta_bar for i in stellList]
-            ma_dofs_cat = np.asarray([self.ma_group[i].get_dofs() for i in stellList]).flatten()
             stellarator_cat = np.asarray([self.stellarator_group[i].get_currents()/self.current_fak for i in stellList]).flatten()
+            ma_dofs_cat = np.asarray([self.ma_group[i].get_dofs() for i in stellList]).flatten()
+            
+            varlist = [eta_bar_cat]
+            varlist.append(stellarator_cat)
+            if not self.tanMap:
+                varlist.append(ma_dofs_cat)
+            if not self.freezeCoils:
+                varlist.append(self.stellarator_group[0].get_dofs())
+            vartuple = tuple(varlist)
+            self.x0 = np.concatenate(vartuple)
+        
+            '''
             if not self.freezeCoils: 
                 self.x0 = np.concatenate((eta_bar_cat, ma_dofs_cat, stellarator_cat, self.stellarator_group[0].get_dofs()))
             else:
                 self.x0 = np.concatenate((eta_bar_cat, ma_dofs_cat, stellarator_cat))
+            print(self.x0)
+            print(len(self.x0))
+            quit()
+            '''
+
         elif mode[0:4] == "cvar":
             if self.freezeCoils or self.num_stellarators != 1:
                 raise NotImplementedError
@@ -117,6 +150,7 @@ class NearAxisQuasiSymmetryObjective():
         self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
         self.tanMap_resAxis_additionalWeight = 100 #Extra weight for the res_axis terms in the tanMap #FIXME - might need to be deleted?
         self.image_freq = image_freq
+        self.old_points = copy.deepcopy([self.ma_group[i].points for i in stellList]) #FIXME can you do this?
 
         sampler = GaussianSampler(coils[0].points, length_scale=length_scale_perturb, sigma=sigma_perturb) #I think I can ignore this
         self.sampler = sampler#I think I can ignore this
@@ -146,32 +180,40 @@ class NearAxisQuasiSymmetryObjective():
         self.out_of_sample_values = []
         self.outdir = outdir
     
+    def split_list(self, alist, wanted_parts=None):  
+        ''' Splits a 1D list or NumPy array evenly into the desired number of parts and returns a list of lists.''' 
+        if wanted_parts is None:
+            wanted_parts = self.num_stellarators
+        length = len(alist)
+        if length % wanted_parts != 0:
+            raise IOError('The list is not evenly divisible into the requested number of parts.')
+        return [alist[i*length // wanted_parts: (i+1)*length // wanted_parts] for i in range(wanted_parts) ]
+    
     def set_dofs(self, x):
         x_etabar = x[self.eta_bar_idxs[0]:self.eta_bar_idxs[1]]
-        x_ma = x[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]] 
         x_current = x[self.current_dof_idxs[0]:self.current_dof_idxs[1]] 
+        x_current_split = self.split_list(x_current)
+        if not self.tanMap:
+            x_ma = x[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]] 
+            x_ma_split = self.split_list(x_ma)
         if not self.freezeCoils:
             x_coil = x[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]] 
             self.t = x[-1] #Not sure what this does. (Doesn't seem important.)
 
-        def split_list(alist, wanted_parts=self.num_stellarators):  
-            ''' Splits a 1D list or NumPy array evenly into the desired number of parts and returns a list of lists.''' 
-            length = len(alist)
-            if length % wanted_parts != 0:
-                raise IOError('The list is not evenly divisible into the requested number of parts.')
-            return [ alist[i*length // wanted_parts: (i+1)*length // wanted_parts] for i in range(wanted_parts) ]
-        
-        x_ma_split = split_list(x_ma)
-        x_current_split = split_list(x_current)
-
         for i in self.stellList:
             self.qsf_group[i].eta_bar = x_etabar[i]
-            self.ma_group[i].set_dofs(x_ma_split[i])
-            self.biotsavart_group[i].set_points(self.ma_group[i].gamma) 
             self.stellarator_group[i].set_currents(self.current_fak * x_current_split[i])
             if not self.freezeCoils:
                 self.stellarator_group[i].set_dofs(x_coil) 
-
+            if not self.tanMap:
+                self.ma_group[i].set_dofs(x_ma_split[i])
+            else:
+                self.tangentMap_group[i].update_solutions()
+                Rcoeffs, Zcoeffs = self.tangentMap_group[i].ft_RZ(nfp=self.nfp, Nt=self.Nt_ma)
+                self.ma_group[i].coefficients[0][:] = Rcoeffs
+                self.ma_group[i].coefficients[1][:] = Zcoeffs
+                self.ma_group[i].update()
+            self.biotsavart_group[i].set_points(self.ma_group[i].gamma) #FIXME does this need to move or change somehow? Perhaps you can update it in update()? Maybe MOVE tanMap instantiation up here??
             self.biotsavart_group[i].clear_cached_properties()
             self.qsf_group[i].clear_cached_properties()
 
@@ -193,11 +235,12 @@ class NearAxisQuasiSymmetryObjective():
         self.set_dofs(x) 
 
         self.dresetabar  = np.zeros(self.eta_bar_idxs[1]-self.eta_bar_idxs[0]) 
-        self.dresma      = np.zeros(self.ma_dof_idxs[1]-self.ma_dof_idxs[0]) 
         self.drescurrent = np.zeros(self.current_dof_idxs[1]-self.current_dof_idxs[0])
+        if not self.tanMap:
+            self.dresma      = np.zeros(self.ma_dof_idxs[1]-self.ma_dof_idxs[0]) 
         if not self.freezeCoils:
             self.drescoil    = np.zeros(self.coil_dof_idxs[1]-self.coil_dof_idxs[0])
-        
+        quit()
         """ Objective values """
         
         if not self.freezeCoils:
@@ -207,7 +250,8 @@ class NearAxisQuasiSymmetryObjective():
         else:
             self.res2 = 0
         self.res3    = self.ma_length_weight * np.sum([0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length[i].J() - magnetic_axis_length_target)**2 for i in self.stellList]) 
-        self.dresma += self.ma_length_weight * np.concatenate(([(1/magnetic_axis_length_target)**2 * (J_axis_length[i].J()-magnetic_axis_length_target) * J_axis_length[i].dJ_by_dcoefficients() for i in self.stellList]))
+        if not self.tanMap:
+            self.dresma += self.ma_length_weight * np.concatenate(([(1/magnetic_axis_length_target)**2 * (J_axis_length[i].J()-magnetic_axis_length_target) * J_axis_length[i].dJ_by_dcoefficients() for i in self.stellList]))
 
         if not self.tanMap:
             self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
@@ -215,9 +259,9 @@ class NearAxisQuasiSymmetryObjective():
             self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:,0] for i in self.stellList]))
             self.calc_iotas = [qsf_group[i].iota for i in self.stellList]
         else:
-            old_points = copy.deepcopy([self.ma_group[i].points for i in self.stellList])
-            for i in self.stellList:
-                tanMap_group[i].update_solutions()
+            #old_points = copy.deepcopy([self.ma_group[i].points for i in self.stellList])
+            #for i in self.stellList:
+            #    tanMap_group[i].update_solutions()
             tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
             self.calc_iotas = tanMap_iota
 
@@ -235,7 +279,7 @@ class NearAxisQuasiSymmetryObjective():
                     self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * (tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() for i in self.stellList],axis=0)
                 
             for i in self.stellList: #The tangent map sets the points to have length 1, so we have to reset them for the rest of the code to work properly.  
-                self.ma_group[i].points = old_points[i]
+                self.ma_group[i].points = self.old_points[i]
                 self.ma_group[i].update()
                 self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
 
@@ -255,7 +299,8 @@ class NearAxisQuasiSymmetryObjective():
             if self.num_stellarators != 1:
                 raise NotImplementedError
             self.res7 = sum(self.sobolev_weight * J.J() for J in self.J_sobolev_weights) #We're not using this anyway. 
-            self.dresma += self.sobolev_weight * self.J_sobolev_weights[-1].dJ_by_dcoefficients() #Probably not fine, but we're not using. 
+            if not self.tanMap:
+                self.dresma += self.sobolev_weight * self.J_sobolev_weights[-1].dJ_by_dcoefficients() #Probably not fine, but we're not using. 
             if not self.freezeCoils:
                 self.drescoil += self.sobolev_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_sobolev_weights[:-1]]) #Probably not fine, but we're not using.
         else:
@@ -328,8 +373,9 @@ class NearAxisQuasiSymmetryObjective():
             self.res_tikhonov_weight = self.tikhonov_weight * np.sum((x-self.x0)**2) #Not using
             dres_tikhonov_weight = self.tikhonov_weight * 2. * (x-self.x0)#Not using
             self.dresetabar += dres_tikhonov_weight[0:1] #Not using
-            self.dresma += dres_tikhonov_weight[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]] #Not using
             self.drescurrent += dres_tikhonov_weight[self.current_dof_idxs[0]:self.current_dof_idxs[1]] #Not using
+            if not self.tanMap:
+                self.dresma += dres_tikhonov_weight[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]] #Not using
             if not self.freezeCoils:
                 self.drescoil += dres_tikhonov_weight[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]] #Not using
         else:
@@ -343,22 +389,24 @@ class NearAxisQuasiSymmetryObjective():
 
         self.res1_det        = np.sum([0.5 * self.quasisym_weight * (J_BSvsQS[i].J_L2() + J_BSvsQS[i].J_H1()) for i in self.stellList])
         self.dresetabar_det  = np.concatenate(([0.5 * self.quasisym_weight * (J_BSvsQS[i].dJ_L2_by_detabar() + J_BSvsQS[i].dJ_H1_by_detabar()) for i in self.stellList]))
-        self.dresma_det      = np.concatenate(([0.5 * self.quasisym_weight * (J_BSvsQS[i].dJ_L2_by_dmagneticaxiscoefficients() + J_BSvsQS[i].dJ_H1_by_dmagneticaxiscoefficients()) for i in self.stellList]))
         self.drescurrent_det = np.concatenate(([0.5 * self.quasisym_weight * self.current_fak * (
             self.stellarator_group[i].reduce_current_derivatives(J_BSvsQS[i].dJ_L2_by_dcoilcurrents()) + self.stellarator_group[i].reduce_current_derivatives(J_BSvsQS[i].dJ_H1_by_dcoilcurrents())
         ) for i in self.stellList]))
+        if not self.tanMap:
+            self.dresma_det      = np.concatenate(([0.5 * self.quasisym_weight * (J_BSvsQS[i].dJ_L2_by_dmagneticaxiscoefficients() + J_BSvsQS[i].dJ_H1_by_dmagneticaxiscoefficients()) for i in self.stellList]))
         if not self.freezeCoils:
             self.drescoil_det    = np.sum(([0.5 * self.quasisym_weight * (self.stellarator_group[i].reduce_coefficient_derivatives(J_BSvsQS[i].dJ_L2_by_dcoilcoefficients()) \
                 + self.stellarator_group[i].reduce_coefficient_derivatives(J_BSvsQS[i].dJ_H1_by_dcoilcoefficients())) for i in self.stellList]),axis=0)
         if self.mode == "deterministic":
             self.res1         = self.res1_det
             self.dresetabar  += self.dresetabar_det
-            self.dresma      += self.dresma_det
             self.drescurrent += self.drescurrent_det
+            if not self.tanMap:
+                self.dresma      += self.dresma_det
             if not self.freezeCoils:
                 self.drescoil    += self.drescoil_det
         else:
-            if self.freezeCoils:
+            if self.freezeCoils or self.tanMap:
                 raise NotImplementedError
             self.dresetabar_det  += self.dresetabar
             self.dresma_det      += self.dresma
@@ -386,24 +434,21 @@ class NearAxisQuasiSymmetryObjective():
             else:
                 raise NotImplementedError
        
-        #self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight])
         self.Jvals_individual.append([self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res10])
         self.res = sum(self.Jvals_individual[-1])
         self.perturbed_vals = [self.res - self.res1 + r for r in self.QSvsBS_perturbed[-1]] #Not using 
 
         if self.mode in ["deterministic", "stochastic"]:
+            dreslist = [self.dresetabar]
+            dreslist.append(drescurrent)
+            if not self.tanMap:
+                dreslist.append(dresma)
             if not self.freezeCoils:
-                self.dres = np.concatenate((
-                    self.dresetabar, self.dresma,
-                    self.drescurrent, self.drescoil
-                ))
-            else:
-                self.dres = np.concatenate((
-                    self.dresetabar, self.dresma,
-                    self.drescurrent
-                ))
+                dreslist.append(drescoil)
+            drestuple = tuple(dreslist)
+            self.dres = np.concatenate(drestuple)
         elif self.mode == "cvar":
-            if self.freezeCoils:
+            if self.freezeCoils or self.tanMap:
                 raise NotImplementedError
             self.dres = np.concatenate((
                 self.dresetabar, self.dresma,
@@ -431,14 +476,16 @@ class NearAxisQuasiSymmetryObjective():
         assert np.allclose(self.x, x)
         self.Jvals.append(self.res)
         norm = np.linalg.norm
+        normlist = [norm(self.dres)]
+        normlist.append(norm(self.dresetabar))
+        normlist.append(norm(self.drescurrent))
+        if not self.tanMap:
+            normlist.append(norm(self.dresma))
         if not self.freezeCoils:
-            self.dJvals.append((
-                norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent), norm(self.drescoil)
-            ))
-        else:
-            self.dJvals.append((
-                norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent)
-            ))
+            normlist.append(norm(self.drescoil))
+        normtuple = tuple(normlist)
+        self.dJvals.append(normtuple)
+        
         if self.ninsamples > 0:
             self.Jvals_quantiles.append((np.quantile(self.perturbed_vals, 0.1), np.mean(self.perturbed_vals), np.quantile(self.perturbed_vals, 0.9)))
         self.Jvals_no_noise.append(self.res - self.res1 + 0.5 * (self.J_BSvsQS[0].J_L2() + self.J_BSvsQS[0].J_H1())) #Not correct, but doesn't seem to be used for anything. 
@@ -456,10 +503,14 @@ class NearAxisQuasiSymmetryObjective():
             cvar90 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.9)))
             cvar95 = np.mean(list(v for v in self.perturbed_vals if v >= np.quantile(self.perturbed_vals, 0.95)))
             info(f"CVaR(.9), CVaR(.95), Max:{cvar90:.6e}, {cvar95:.6e}, {max(self.perturbed_vals):.6e}")
-        if not self.freezeCoils:
-            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}, {norm(self.drescoil):.6e}")
+        if not (self.freezeCoils or self.tanMap):
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.drescurrent):.6e}, {norm(self.dresma):.6e}, {norm(self.drescoil):.6e}")
+        elif not self.freezeCoils:
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.drescurrent):.6e}, {norm(self.drescoil):.6e}")
+        elif not self.tanMap:
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.drescurrent):.6e}, {norm(self.dresma):.6e}")
         else:
-            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}")
+            info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.drescurrent):.6e}")
 
         max_curvature  = max(np.max(c.kappa) for c in self.stellarator_group[0]._base_coils)
         mean_curvature = np.mean([np.mean(c.kappa) for c in self.stellarator_group[0]._base_coils])
