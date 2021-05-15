@@ -4,6 +4,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
 import pathlib as pl
+from pyplasmaopt.checkpoint import Checkpoint
 
 obj, args = get_objective()
 obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
@@ -88,7 +89,7 @@ if False:
 
 maxiter = args.iter
 memory = 200
-maxfun = args.iter * 100 #FIXME?
+maxfun = args.iter * 100 
 iprint = -1
 maxls = 50 #Elizabeth's suggestion
 
@@ -102,55 +103,16 @@ def J_scipy(x):
 
 res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
         options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
-               callback=obj.callback) #FIXME you added the ftol, gtol, and maxfun bits
+               callback=obj.callback) 
 
 info("%s" % res)
 xmin = res.x
 obj.save_to_matlab('matlab_optim')
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
-'''
-for i,stell in enumerate(obj.stellarator_group):
-    obj.stellarator_group[i].savetotxt(outdir,i) #Maybe works?
-    np.savetxt(str(pl.Path(obj.outdir).joinpath('currents_%d.txt'%i)), obj.stellarator_group[i]._base_currents) #Maybe works?
-'''
-for stellind,stellarator in enumerate(obj.stellarator_group):
-    np.savetxt(str(pl.Path(obj.outdir).joinpath('currents_%d.txt'%stellind)), obj.stellarator_group[stellind]._base_currents) #Maybe works?
-    for coilind,coil in enumerate(obj.stellarator_group[stellind].coils):
-        np.savetxt(str(pl.Path(obj.outdir).joinpath('coil-%d.txt'%coilind)),obj.stellarator_group[0].coils[coilind].gamma) #Maybe works?
-        np.savetxt(str(pl.Path(obj.outdir).joinpath('current-%d_%d.txt'%(coilind,stellind))),[obj.stellarator_group[stellind].currents[coilind]]) #Maybe works?
 
-matlabcoils = [c.tomatlabformat() for c in obj.stellarator_group[0]._base_coils] #Should be fine
-np.savetxt(str(pl.Path(obj.outdir).joinpath('coilsmatlab.txt')), np.hstack(matlabcoils)) #Should be fine
-
-save = obj.stellarator_group[0]._base_coils[0].coefficients
-for i in range(1,len(obj.stellarator_group[0]._base_coils)):
-    save = np.append(save,obj.stellarator_group[0]._base_coils[i].coefficients,axis=0)
-np.savetxt(str(pl.Path(obj.outdir).joinpath('coilCoeffs.txt')), save,fmt='%.20f') #Should be fine
-
-for i,ma in enumerate(obj.ma_group):
-    save = []
-    for item in obj.ma_group[i].coefficients:
-        save.append(item.tolist())
-    with open(str(pl.Path(obj.outdir).joinpath('maCoeffs_%d.txt'%i)), "w") as f: #Maybe works?
-        for line in save:
-            for ind,item in enumerate(line):
-                f.write(str(item))
-                if ind!=len(line)-1:
-                    f.write(' ')
-            f.write('\n')
-
-for i,qsf in enumerate(obj.qsf_group):
-    save1 = obj.qsf_group[i].eta_bar #FIXME does this need to be changed?
-    np.savetxt(str(pl.Path(obj.outdir).joinpath('eta_bar_%d.txt'%i)), [save1],fmt='%.20f') 
-    save2 = obj.calc_iotas[i]
-    np.savetxt(str(pl.Path(obj.outdir).joinpath('iota_ma_%d.txt'%i)), [save2],fmt='%.20f')
-
+iteration = len(obj.xiterates)-1
+Checkpoint(obj,iteration=iteration)
 np.savetxt(outdir + "xmin.txt", xmin)
-np.savetxt(outdir + "Jvals.txt", obj.Jvals)
-np.savetxt(outdir + "dJvals.txt", obj.dJvals)
-np.savetxt(outdir + "xiterates.txt", obj.xiterates)
-np.savetxt(outdir + "Jvals_individual.txt", obj.Jvals_individual)
-
 if args.Taylor:
     taylor_test(obj, xmin, nrando=1)

@@ -27,6 +27,7 @@ def get_objective():
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
+    parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
     parser.add_argument("--rld", type=str, required=False) #NOTE: you can only reload one stellarator at a time! 
     parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class. #FIXME do you need this option any more?
     parser.add_argument("--stellID", type=int, default=0)
@@ -79,6 +80,9 @@ def get_objective():
     outdir = outdir.replace(".", "p")
     outdir = outdir.replace(' ','')
     outdir = outdir.replace(',','_')
+    outdir = outdir.replace('True','T')
+    outdir = outdir.replace('False','F')
+    outdir = outdir.replace('None','F')
     outdir += "/"
 
     os.makedirs(outdir, exist_ok=True)
@@ -146,8 +150,8 @@ def get_objective():
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
-        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, constrained=args.cons, iota_weight=args.iota_wt,
-        quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
+        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, constrained=args.cons, keepAxis=args.keepAx, 
+        iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
         xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,xopt_rld=xopt_rld,major_radius=args.maj_rad,
         renorm=args.renorm,image_freq=args.image)
