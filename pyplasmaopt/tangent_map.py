@@ -4,11 +4,11 @@ import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMap():
-    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-12, atol=1e-12,
-                constrained=True,bvp_tol=1e-8,tol=1e-10,max_nodes=50000,
-                verbose=0,nphi_guess=100,nphi_integral=10000,
+    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
+                constrained=True,bvp_tol=1e-8,tol=1e-8,max_nodes=50000,
+                verbose=0,nphi_guess=1000,nphi_integral=1000,
                 maxiter=20,axis_bvp=False,adjoint_axis_fd=True,
-                adjoint_axis_bvp=False,method='LSODA',
+                adjoint_axis_bvp=False,method='BDF',
                 min_step=1e-12,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
         """
         stellarator: instance of CoilCollection representing modular coils
@@ -1541,8 +1541,9 @@ class TangentMap():
                 
             t_span = (0,2*np.pi)
             niter = 0
+            y0 = y0[:,0]
             for niter in range(self.maxiter):
-                out = scipy.integrate.solve_ivp(fun,t_span,y0[:,0],
+                out = scipy.integrate.solve_ivp(fun,t_span,y0,
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
                                         method=self.method,min_step=self.min_step)
