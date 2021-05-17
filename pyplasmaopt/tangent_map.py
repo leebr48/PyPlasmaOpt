@@ -1,12 +1,15 @@
 import numpy as np
 import scipy.integrate
+import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
 
 class TangentMap():
-    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-13, atol=1e-13,
-                constrained=True,bvp_tol=1e-8,tol=1e-12,max_nodes=50000,
-                verbose=0,nphi_guess=100,nphi_integral=50000,
-                maxiter=500,axis_bvp=False,adjoint_axis_bvp=False,method='RK45'): #FIXME maxiter was 50 and max_nodes was 100000
+    def __init__(self, stellarator, magnetic_axis=None, rtol=1e-12, atol=1e-12,
+                constrained=True,bvp_tol=1e-8,tol=1e-10,max_nodes=50000,
+                verbose=0,nphi_guess=100,nphi_integral=10000,
+                maxiter=20,axis_bvp=False,adjoint_axis_fd=True,
+                adjoint_axis_bvp=False,method='LSODA',
+                min_step=1e-12,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
@@ -43,7 +46,10 @@ class TangentMap():
         self.maxiter = maxiter
         self.axis_bvp = axis_bvp
         self.adjoint_axis_bvp = adjoint_axis_bvp
+        self.adjoint_axis_fd = adjoint_axis_fd 
         self.method = method 
+        self.min_step = min_step
+        self.check_adjoint = check_adjoint
         # Polynomial solutions for current solutions
         self.axis_poly = None
         self.tangent_poly = None
@@ -70,10 +76,14 @@ class TangentMap():
                 sol, self.adjoint_axis_poly = self.compute_adjoint_axis(phi,
                          self.axis_poly,self.tangent_poly,self.adjoint_tangent_poly)
         else:
+            print('Computing axis')
             sol, self.axis_poly = self.compute_axis(phi)
+            print('Computing tangent map')
             sol, self.tangent_poly = self.compute_tangent(phi)
             if derivatives:
+                print('Computing adjoint tangent')
                 sol, self.adjoint_tangent_poly = self.compute_adjoint_tangent(phi_reverse)
+                print('Computing adjoint axis')
                 sol, self.adjoint_axis_poly = self.compute_adjoint_axis(phi,
                                                                  self.axis_poly)
 
@@ -116,7 +126,7 @@ class TangentMap():
             y (2d array (4,len(phi))): flattened tangent map on grid of
                 toroidal angle
         """
-        if self.constrained:
+        if axis_poly is not None:
             args = (adjoint,axis_poly)
         else:
             args = (adjoint,)
@@ -127,7 +137,7 @@ class TangentMap():
             out = scipy.integrate.solve_ivp(self.rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
                                             t_eval=phi,args=args,dense_output=True,
-                                           method=self.method)
+                                           method=self.method,min_step=self.min_step)
         except ValueError: #FIXME you added this try/except loop to deal with the scipy glitch
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
         
@@ -296,6 +306,7 @@ class TangentMap():
             self.stellarator.reduce_current_derivatives([ires for ires in
                                                          d_iota_dcoilcurrents])
 
+        print('Success in computing d_iota_dcoilcurrents')
         return d_iota_dcoilcurrents
 
     def d_iota_dcoilcoeffs(self):
@@ -309,18 +320,44 @@ class TangentMap():
                                retstep=True)
         if (self.tangent_poly is None):
             self.update_solutions()
+            
+        iota = self.compute_iota()
+        fac = -1/(4*np.pi*np.sin(2*np.pi*iota))
+            
+#         def integrand(phi,i):
+#             phi = np.array([phi])
+#             d_m = self.compute_d_m_dcoilcoeffs(phi)[i]
+#             lam = self.adjoint_tangent_poly(phi)
+#             M = self.tangent_poly(phi)
+#             lambda_dot_d_m_times_M = \
+#                   lam[0,:,None]*(d_m[0,...]*M[0,...,None] + d_m[1,...]*M[2,...,None]) \
+#                 + lam[1,:,None]*(d_m[0,...]*M[1,...,None] + d_m[1,...]*M[3,...,None]) \
+#                 + lam[2,:,None]*(d_m[2,...]*M[0,...,None] + d_m[3,...]*M[2,...,None]) \
+#                 + lam[3,:,None]*(d_m[2,...]*M[1,...,None] + d_m[3,...]*M[3,...,None])
+#             integrand = -fac*lambda_dot_d_m_times_M
+#             if self.constrained:
+#                 mu = self.adjoint_axis_poly(phi)
+#                 d_V_by_dcoilcoeffs = self.compute_d_V_dcoilcoeffs(phi,self.axis_poly)
+#                 d_V = d_V_by_dcoilcoeffs[i]
+#                 mu_dot_d_V = mu[0,...,None]*d_V[0,...] + mu[1,...,None]*d_V[1,...]
+#                 integrand += -mu_dot_d_V
+#             integrand = np.squeeze(integrand[0,:])
+# #             print(np.shape(integrand))
+#             return integrand
 
         M = self.tangent_poly(phi)
         lam = self.adjoint_tangent_poly(phi)
-        iota = self.compute_iota()
         d_m_by_dcoilcoeffs = self.compute_d_m_dcoilcoeffs(phi)
         if self.constrained:
             mu = self.adjoint_axis_poly(phi)
             d_V_by_dcoilcoeffs = self.compute_d_V_dcoilcoeffs(phi,self.axis_poly)
 
-        fac = -1/(4*np.pi*np.sin(2*np.pi*iota))
         d_iota_dcoilcoeffs = []
-        for i in range(len(d_m_by_dcoilcoeffs)):
+        
+        for i in range(len(self.stellarator.coils)):
+#             print(np.shape(integrand(0,0)))
+#             d_iota, error = scipy.integrate.quad_vec(lambda phi : integrand(phi,i),0,2*np.pi)
+#             print(np.shape(d_iota))
             d_m = d_m_by_dcoilcoeffs[i]
             lambda_dot_d_m_times_M = \
                   lam[0,:,None]*(d_m[0,...]*M[0,...,None] + d_m[1,...]*M[2,...,None]) \
@@ -335,6 +372,8 @@ class TangentMap():
 
             d_iota_dcoilcoeffs.append(d_iota)
         d_iota_dcoilcoeffs = self.stellarator.reduce_coefficient_derivatives([ires for ires in d_iota_dcoilcoeffs])
+        print('Success in computing d_iota_dcoilcoeffs')
+
         return d_iota_dcoilcoeffs
 
     def compute_adjoint_tangent(self,phi,axis_poly=None):
@@ -353,7 +392,7 @@ class TangentMap():
         out = scipy.integrate.solve_ivp(self.adjoint_rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
                                        t_eval=phi,args=args,dense_output=True,
-                                       method=self.method)
+                                       method=self.method,min_step=self.min_step)
         if (out.status==0):
             return out.y, out.sol
         else:
@@ -622,6 +661,8 @@ class TangentMap():
             d_m_dcoilcoeffs (3d array (npoints,ncoeffs,4)): derivative
                 of matrix appearing on rhs on ode wrt axis coeffs
         """
+        dmdR, dmdZ = self.compute_grad_m(phi)
+        
         points = phi/(2*np.pi)
         self.magnetic_axis.points = np.asarray(points)
         self.magnetic_axis.update()
@@ -630,145 +671,162 @@ class TangentMap():
         X = self.magnetic_axis.gamma[...,0]
         Y = self.magnetic_axis.gamma[...,1]
         Z = self.magnetic_axis.gamma[...,2]
-
-
-        B = self.biotsavart.B
-        BX = B[...,0]
-        BY = B[...,1]
-        BZ = B[...,2]
-
-        gradB = self.biotsavart.dB_by_dX
-        dBXdX = gradB[...,0,0]
-        dBXdY = gradB[...,1,0]
-        dBXdZ = gradB[...,2,0]
-        dBYdX = gradB[...,0,1]
-        dBYdY = gradB[...,1,1]
-        dBYdZ = gradB[...,2,1]
-        dBZdX = gradB[...,0,2]
-        dBZdY = gradB[...,1,2]
-        dBZdZ = gradB[...,2,2]
-
-#         X = self.biotsavart.points[:,0]
-#         Y = self.biotsavart.points[:,1]
-#         Z = self.biotsavart.points[:,2]
         R = np.sqrt(X**2 + Y**2)
-        BR =  X*BX/R + Y*BY/R
-        BP = -Y*BX/R + X*BY/R
-        dBRdR = (X**2*dBXdX + X*Y * (dBYdX + dBXdY) + Y**2 * dBYdY)/(R**2)
-        dBPdR = (X*Y * (dBYdY-dBXdX) + X**2 * dBYdX - Y**2 * dBXdY)/(R**2)
-        dBZdR =  dBZdX*X/R + dBZdY*Y/R
-        dBRdZ =  dBXdZ*X/R + dBYdZ*Y/R
-        dBPdZ = -dBXdZ*Y/R + dBYdZ*X/R
-
-        X = X[:,None]
-        Y = Y[:,None]
-        R = R[:,None]
-        BP = BP[:,None]
-        BR = BR[:,None]
-        BZ = BZ[:,None]
-        BX = BX[:,None]
-        BY = BY[:,None]
-        dBRdR = dBRdR[:,None]
-        dBPdR = dBPdR[:,None]
-        dBZdR = dBZdR[:,None]
-        dBRdZ = dBRdZ[:,None]
-        dBPdZ = dBPdZ[:,None]
-        dBZdZ = dBZdZ[:,None]
-        dBXdX = dBXdX[:,None]
-        dBXdY = dBXdY[:,None]
-        dBXdZ = dBXdZ[:,None]
-        dBYdX = dBYdX[:,None]
-        dBYdY = dBYdY[:,None]
-        dBYdZ = dBYdZ[:,None]
-        dBZdX = dBZdX[:,None]
-        dBZdY = dBZdY[:,None]
-
-        # Shape: (len(self.points), self.num_coeff(), 3)
+        
         dgamma_by_dcoeff  = self.magnetic_axis.dgamma_by_dcoeff
 
         d_X = dgamma_by_dcoeff[...,0]
         d_Y = dgamma_by_dcoeff[...,1]
-        d_R = dgamma_by_dcoeff[...,0]*X/R + dgamma_by_dcoeff[...,1]*Y/R
-        d_BX = dgamma_by_dcoeff[...,0]*gradB[...,None,0,0] \
-             + dgamma_by_dcoeff[...,1]*gradB[...,None,1,0] \
-             + dgamma_by_dcoeff[...,2]*gradB[...,None,2,0]
-        d_BY = dgamma_by_dcoeff[...,0]*gradB[...,None,0,1] \
-             + dgamma_by_dcoeff[...,1]*gradB[...,None,1,1] \
-             + dgamma_by_dcoeff[...,2]*gradB[...,None,2,1]
-        d_BZ = dgamma_by_dcoeff[...,0]*gradB[...,None,0,2] \
-             + dgamma_by_dcoeff[...,1]*gradB[...,None,1,2] \
-             + dgamma_by_dcoeff[...,2]*gradB[...,None,2,2]
+        d_R = (d_X*X[:,None] + d_Y*Y[:,None])/R[:,None]
+        d_Z = dgamma_by_dcoeff[...,2]
+        return dmdR[:,:,None]*d_R[None,:,:] + dmdZ[:,:,None]*d_Z[None,:,:]
+        
+#         points = phi/(2*np.pi)
+#         self.magnetic_axis.points = np.asarray(points)
+#         self.magnetic_axis.update()
+#         self.biotsavart.compute(self.magnetic_axis.gamma)
+        
+#         X = self.magnetic_axis.gamma[...,0]
+#         Y = self.magnetic_axis.gamma[...,1]
+#         Z = self.magnetic_axis.gamma[...,2]
 
-        # Shape: ((len(points), 3, 3, 3))
-        d2Bbs_by_dXdX = self.biotsavart.d2B_by_dXdX
+#         B = self.biotsavart.B
+#         BX = B[...,0]
+#         BY = B[...,1]
+#         BZ = B[...,2]
 
-        d_dBXdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,0] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,0] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,0]
-        d_dBXdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,0] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,0] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,0]
-        d_dBXdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,0] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,0] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,0]
-        d_dBYdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,1] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,1] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,1]
-        d_dBYdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,1] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,1] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,1]
-        d_dBYdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,1] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,1] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,1]
-        d_dBZdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,2] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,2] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,2]
-        d_dBZdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,2] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,2] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,2]
-        d_dBZdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,2] \
-            +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,2] \
-            +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,2]
+#         gradB = self.biotsavart.dB_by_dX
+#         dBXdX = gradB[...,0,0]
+#         dBXdY = gradB[...,1,0]
+#         dBXdZ = gradB[...,2,0]
+#         dBYdX = gradB[...,0,1]
+#         dBYdY = gradB[...,1,1]
+#         dBYdZ = gradB[...,2,1]
+#         dBZdX = gradB[...,0,2]
+#         dBZdY = gradB[...,1,2]
+#         dBZdZ = gradB[...,2,2]
 
-        d_BR =  (X * d_BX + d_X * BX + Y * d_BY + d_Y * BY)/R \
-            - BR*d_R/R
-        d_dBRdR = (X**2*d_dBXdX + 2* X * d_X * dBXdX
-                + X*Y * (d_dBYdX + d_dBXdY) + (d_X * Y + d_Y * X)*(dBYdX + dBXdY)
-                + Y**2 * d_dBYdY + 2*Y*d_Y * dBYdY)/(R**2) \
-            - 2*dBRdR*d_R/R
-        d_BP = (-Y * d_BX - d_Y * BX + X * d_BY + d_X * BY)/R \
-            - BP*d_R/R
-        d_dBPdR = (X*Y * (d_dBYdY-d_dBXdX) + (d_X*Y + X*d_Y)*(dBYdY-dBXdX)
-                + X**2 * d_dBYdX + 2 * X * d_X * dBYdX
-                - Y**2 * d_dBXdY - 2 * Y * d_Y * dBXdY)/(R**2) \
-            - 2*dBPdR * d_R/R
-        d_dBZdR =  (d_dBZdX*X + dBZdX*d_X + d_dBZdY*Y + dBZdY*d_Y)/R - dBZdR*d_R/R
-        d_dBRdZ =  (d_dBXdZ*X + dBXdZ*d_X + d_dBYdZ*Y + dBYdZ*d_Y)/R - dBRdZ*d_R/R
-        d_dBPdZ =  (-d_dBXdZ*Y - dBXdZ*d_Y + d_dBYdZ*X + dBYdZ*d_X)/R - dBPdZ*d_R/R
+# #         X = self.biotsavart.points[:,0]
+# #         Y = self.biotsavart.points[:,1]
+# #         Z = self.biotsavart.points[:,2]
+#         R = np.sqrt(X**2 + Y**2)
+#         BR =  X*BX/R + Y*BY/R
+#         BP = -Y*BX/R + X*BY/R
+#         dBRdR = (X**2*dBXdX + X*Y * (dBYdX + dBXdY) + Y**2 * dBYdY)/(R**2)
+#         dBPdR = (X*Y * (dBYdY-dBXdX) + X**2 * dBYdX - Y**2 * dBXdY)/(R**2)
+#         dBZdR =  dBZdX*X/R + dBZdY*Y/R
+#         dBRdZ =  dBXdZ*X/R + dBYdZ*Y/R
+#         dBPdZ = -dBXdZ*Y/R + dBYdZ*X/R
 
-        d_m = np.zeros((4,np.shape(d_BR)[0],np.shape(d_BR)[1]))
-#             d_m[...,0] = BR/BP + R*(dBRdR/BP - BR*dBPdR/BP**2)
-        d_m[0,...] = d_BR/BP - BR*d_BP/BP**2 \
-            + R*(d_dBRdR/BP - dBRdR*d_BP/BP**2 - d_BR*dBPdR/BP**2
-                - BR*d_dBPdR/BP**2 + 2*BR*dBPdR*d_BP/BP**3) \
-            + d_R * (dBRdR/BP - BR*dBPdR/BP**2)
-#             d_m[...,1] = R*(dBRdZ/BP - BR*dBPdZ/BP**2)
-        d_m[1,...] = R*(d_dBRdZ/BP - dBRdZ*d_BP/BP**2 - d_BR*dBPdZ/BP**2
-                - BR*d_dBPdZ/BP**2 + 2*BR*dBPdZ*d_BP/BP**3) \
-            + d_R * (dBRdZ/BP - BR*dBPdZ/BP**2)
-#             d_m[...,2] = BZ/BP + R*(dBZdR/BP - BZ*dBPdR/BP**2)
-        d_m[2,...] = d_BZ/BP - BZ*d_BP/BP**2 \
-            + R*(d_dBZdR/BP - dBZdR*d_BP/BP**2 - d_BZ*dBPdR/BP**2
-                - BZ*d_dBPdR/BP**2 + 2*BZ*dBPdR*d_BP/(BP**3)) \
-            + d_R * (dBZdR/BP - BZ*dBPdR/BP**2)
-#             d_m[...,3] = R*(dBZdZ/BP - BZ*dBPdZ/BP**2)
-        d_m[3,...] = R*(d_dBZdZ/BP - dBZdZ*d_BP/BP**2
-                - d_BZ*dBPdZ/BP**2 - BZ*d_dBPdZ/BP**2 + 2*BZ*dBPdZ*d_BP/BP**3) \
-                + d_R * (dBZdZ/BP - BZ*dBPdZ/BP**2)
+#         X = X[:,None]
+#         Y = Y[:,None]
+#         R = R[:,None]
+#         BP = BP[:,None]
+#         BR = BR[:,None]
+#         BZ = BZ[:,None]
+#         BX = BX[:,None]
+#         BY = BY[:,None]
+#         dBRdR = dBRdR[:,None]
+#         dBPdR = dBPdR[:,None]
+#         dBZdR = dBZdR[:,None]
+#         dBRdZ = dBRdZ[:,None]
+#         dBPdZ = dBPdZ[:,None]
+#         dBZdZ = dBZdZ[:,None]
+#         dBXdX = dBXdX[:,None]
+#         dBXdY = dBXdY[:,None]
+#         dBXdZ = dBXdZ[:,None]
+#         dBYdX = dBYdX[:,None]
+#         dBYdY = dBYdY[:,None]
+#         dBYdZ = dBYdZ[:,None]
+#         dBZdX = dBZdX[:,None]
+#         dBZdY = dBZdY[:,None]
 
-        return d_m
+#         # Shape: (len(self.points), self.num_coeff(), 3)
+#         dgamma_by_dcoeff  = self.magnetic_axis.dgamma_by_dcoeff
 
-    def compute_grad_m(self,phi,axis_poly):
+#         d_X = dgamma_by_dcoeff[...,0]
+#         d_Y = dgamma_by_dcoeff[...,1]
+#         d_R = dgamma_by_dcoeff[...,0]*X/R + dgamma_by_dcoeff[...,1]*Y/R
+#         d_BX = dgamma_by_dcoeff[...,0]*gradB[...,None,0,0] \
+#              + dgamma_by_dcoeff[...,1]*gradB[...,None,1,0] \
+#              + dgamma_by_dcoeff[...,2]*gradB[...,None,2,0]
+#         d_BY = dgamma_by_dcoeff[...,0]*gradB[...,None,0,1] \
+#              + dgamma_by_dcoeff[...,1]*gradB[...,None,1,1] \
+#              + dgamma_by_dcoeff[...,2]*gradB[...,None,2,1]
+#         d_BZ = dgamma_by_dcoeff[...,0]*gradB[...,None,0,2] \
+#              + dgamma_by_dcoeff[...,1]*gradB[...,None,1,2] \
+#              + dgamma_by_dcoeff[...,2]*gradB[...,None,2,2]
+
+#         # Shape: ((len(points), 3, 3, 3))
+#         d2Bbs_by_dXdX = self.biotsavart.d2B_by_dXdX
+
+#         d_dBXdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,0] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,0] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,0]
+#         d_dBXdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,0] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,0] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,0]
+#         d_dBXdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,0] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,0] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,0]
+#         d_dBYdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,1] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,1] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,1]
+#         d_dBYdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,1] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,1] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,1]
+#         d_dBYdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,1] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,1] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,1]
+#         d_dBZdX = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,0,2] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,0,2] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,0,2]
+#         d_dBZdY = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,1,2] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,1,2] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,1,2]
+#         d_dBZdZ = dgamma_by_dcoeff[...,0]*d2Bbs_by_dXdX[...,None,0,2,2] \
+#             +     dgamma_by_dcoeff[...,1]*d2Bbs_by_dXdX[...,None,1,2,2] \
+#             +     dgamma_by_dcoeff[...,2]*d2Bbs_by_dXdX[...,None,2,2,2]
+
+#         d_BR =  (X * d_BX + d_X * BX + Y * d_BY + d_Y * BY)/R \
+#             - BR*d_R/R
+#         d_dBRdR = (X**2*d_dBXdX + 2* X * d_X * dBXdX
+#                 + X*Y * (d_dBYdX + d_dBXdY) + (d_X * Y + d_Y * X)*(dBYdX + dBXdY)
+#                 + Y**2 * d_dBYdY + 2*Y*d_Y * dBYdY)/(R**2) \
+#             - 2*dBRdR*d_R/R
+#         d_BP = (-Y * d_BX - d_Y * BX + X * d_BY + d_X * BY)/R \
+#             - BP*d_R/R
+#         d_dBPdR = (X*Y * (d_dBYdY-d_dBXdX) + (d_X*Y + X*d_Y)*(dBYdY-dBXdX)
+#                 + X**2 * d_dBYdX + 2 * X * d_X * dBYdX
+#                 - Y**2 * d_dBXdY - 2 * Y * d_Y * dBXdY)/(R**2) \
+#             - 2*dBPdR * d_R/R
+#         d_dBZdR =  (d_dBZdX*X + dBZdX*d_X + d_dBZdY*Y + dBZdY*d_Y)/R - dBZdR*d_R/R
+#         d_dBRdZ =  (d_dBXdZ*X + dBXdZ*d_X + d_dBYdZ*Y + dBYdZ*d_Y)/R - dBRdZ*d_R/R
+#         d_dBPdZ =  (-d_dBXdZ*Y - dBXdZ*d_Y + d_dBYdZ*X + dBYdZ*d_X)/R - dBPdZ*d_R/R
+
+#         d_m = np.zeros((4,np.shape(d_BR)[0],np.shape(d_BR)[1]))
+# #             d_m[...,0] = BR/BP + R*(dBRdR/BP - BR*dBPdR/BP**2)
+#         d_m[0,...] = d_BR/BP - BR*d_BP/BP**2 \
+#             + R*(d_dBRdR/BP - dBRdR*d_BP/BP**2 - d_BR*dBPdR/BP**2
+#                 - BR*d_dBPdR/BP**2 + 2*BR*dBPdR*d_BP/BP**3) \
+#             + d_R * (dBRdR/BP - BR*dBPdR/BP**2)
+# #             d_m[...,1] = R*(dBRdZ/BP - BR*dBPdZ/BP**2)
+#         d_m[1,...] = R*(d_dBRdZ/BP - dBRdZ*d_BP/BP**2 - d_BR*dBPdZ/BP**2
+#                 - BR*d_dBPdZ/BP**2 + 2*BR*dBPdZ*d_BP/BP**3) \
+#             + d_R * (dBRdZ/BP - BR*dBPdZ/BP**2)
+# #             d_m[...,2] = BZ/BP + R*(dBZdR/BP - BZ*dBPdR/BP**2)
+#         d_m[2,...] = d_BZ/BP - BZ*d_BP/BP**2 \
+#             + R*(d_dBZdR/BP - dBZdR*d_BP/BP**2 - d_BZ*dBPdR/BP**2
+#                 - BZ*d_dBPdR/BP**2 + 2*BZ*dBPdR*d_BP/(BP**3)) \
+#             + d_R * (dBZdR/BP - BZ*dBPdR/BP**2)
+# #             d_m[...,3] = R*(dBZdZ/BP - BZ*dBPdZ/BP**2)
+#         d_m[3,...] = R*(d_dBZdZ/BP - dBZdZ*d_BP/BP**2
+#                 - d_BZ*dBPdZ/BP**2 - BZ*d_dBPdZ/BP**2 + 2*BZ*dBPdZ*d_BP/BP**3) \
+#                 + d_R * (dBZdZ/BP - BZ*dBPdZ/BP**2)
+
+#         return d_m
+
+    def compute_grad_m(self,phi,axis_poly=None):
         """
         Computes the derivative of  matrix that appears on the rhs of the
             tangent map ode, e.g. M'(phi) = m(phi) M(phi), with respect, to
@@ -780,18 +838,27 @@ class TangentMap():
             d_m_d_R (1d array (len(phi))): derivative of m wrt to R
             d_m_d_Z (1d array (len(phi))): derivative of m wrt to Z
         """
-        axis = axis_poly(phi)
-        if (np.ndim(phi) > 0):
-            gamma = np.zeros((len(phi),3))
+        if axis_poly is not None:
+            axis = axis_poly(phi)
+            if (np.ndim(phi) > 0):
+                gamma = np.zeros((len(phi),3))
+            else:
+                gamma = np.zeros((1,3))
+            gamma[...,0] = axis[0,...]*np.cos(phi)
+            gamma[...,1] = axis[0,...]*np.sin(phi)
+            gamma[...,2] = axis[1,...]
+            self.biotsavart.compute(gamma)
+            X = gamma[...,0]
+            Y = gamma[...,1]
+            Z = gamma[...,2]
         else:
-            gamma = np.zeros((1,3))
-        gamma[...,0] = axis[0,...]*np.cos(phi)
-        gamma[...,1] = axis[0,...]*np.sin(phi)
-        gamma[...,2] = axis[1,...]
-        self.biotsavart.compute(gamma)
-        X = gamma[...,0]
-        Y = gamma[...,1]
-        Z = gamma[...,2]
+            points = phi/(2*np.pi)
+            self.magnetic_axis.points = np.asarray(points)
+            self.magnetic_axis.update()
+            self.biotsavart.compute(self.magnetic_axis.gamma)
+            X = self.magnetic_axis.gamma[...,0]
+            Y = self.magnetic_axis.gamma[...,1]
+            Z = self.magnetic_axis.gamma[...,2]
 
         B = self.biotsavart.B
         BX = B[...,0]
@@ -808,21 +875,7 @@ class TangentMap():
         dBZdX = gradB[...,0,2]
         dBZdY = gradB[...,1,2]
         dBZdZ = gradB[...,2,2]
-
-#         X = self.biotsavart.points[:,0]
-#         Y = self.biotsavart.points[:,1]
-#         Z = self.biotsavart.points[:,2]
-        R = np.sqrt(X**2 + Y**2)
-        dRdX = X/R
-        dRdY = Y/R
-        BR =  X*BX/R + Y*BY/R
-        BP = -Y*BX/R + X*BY/R
-        dBRdR = (X**2*dBXdX + X*Y * (dBYdX + dBXdY) + Y**2 * dBYdY)/(R**2)
-        dBPdR = (X*Y * (dBYdY-dBXdX) + X**2 * dBYdX - Y**2 * dBXdY)/(R**2)
-        dBZdR =  dBZdX*X/R + dBZdY*Y/R
-        dBRdZ =  dBXdZ*X/R + dBYdZ*Y/R
-        dBPdZ = -dBXdZ*Y/R + dBYdZ*X/R
-
+        
         # Shape: ((len(points), 3, 3, 3))
         d2Bbs_by_dXdX = self.biotsavart.d2B_by_dXdX
         d2BXdX2 = d2Bbs_by_dXdX[...,0,0,0]
@@ -844,80 +897,272 @@ class TangentMap():
         d2BYdYdZ = d2Bbs_by_dXdX[...,1,2,1]
         d2BZdYdZ = d2Bbs_by_dXdX[...,1,2,2]
 
+        R = np.sqrt(X**2 + Y**2)
+        dRdX = X/R
+        dRdY = Y/R
+        d2RdX2 = 1/R - dRdX*dRdX/R
+        d2RdY2 = 1/R - dRdY*dRdY/R
+        d2RdXdY = -dRdX*dRdY/R
+        
+        BR = (X*BX + Y*BY)/R
+        BP = (-Y*BX + X*BY)/R
+        
+        """
+        BR = (X*BX + Y*BY)/R
+        """
+        dBRdZ = (X*dBXdZ + Y*dBYdZ)/R
+        dBRdY = (X*dBXdY + BY + Y * dBYdY)/R - dRdY*BR/R
+        dBRdX = (BX + X*dBXdX + Y*dBYdX)/R - dRdX*BR/R
+        
+        """
+        BP = (-Y*BX + X*BY)/R
+        """
+        dBPdX = (-Y*dBXdX + BY + X*dBYdX)/R - dRdX*BP/R
+        dBPdY = (-BX -Y*dBXdY + X*dBYdY)/R - dRdY*BP/R
+        dBPdZ = (-Y*dBXdZ + X*dBYdZ)/R 
+
+        """
+        dBRdZ = (X*dBXdZ + Y*dBYdZ)/R
+        """
+        
+        d2BRdZ2 = (X*d2BXdZ2 + Y*d2BYdZ2)/R
+        
+        """
+        dBRdY = (X*dBXdY + BY + Y * dBYdY - dRdY*BR)/R
+        """
+        
+        d2BRdY2 = (X*d2BXdY2 + 2*dBYdY + Y*d2BYdY2
+                  - d2RdY2*BR - dRdY*dBRdY)/R \
+                - dRdY*dBRdY/R
+        d2BRdYdZ = (X*d2BXdYdZ + dBYdZ + Y*d2BYdYdZ - dRdY*dBRdZ)/R \
+        
+        """
+        dBRdX = (BX + X*dBXdX + Y*dBYdX - dRdX*BR)/R 
+        """
+
+        d2BRdX2 = (2*dBXdX + X*d2BXdX2 + Y*d2BYdX2 - d2RdX2*BR - dRdX*dBRdX)/R \
+                - dRdX*dBRdX/R
+        d2BRdXdY = (dBXdY + X*d2BXdXdY + dBYdX + Y*d2BYdXdY - d2RdXdY*BR - dRdX*dBRdY)/R \
+                - dRdY*dBRdX/R
+        d2BRdXdZ = (dBXdZ + X*d2BXdXdZ + Y*d2BYdXdZ - dRdX*dBRdZ)/R 
+        
+        """
+        dBPdX = (-Y*dBXdX + BY + X*dBYdX - dRdX*BP)/R
+        """
+                
+        d2BPdX2 = (-Y*d2BXdX2 + dBYdX + dBYdX + X*d2BYdX2 - d2RdX2*BP - dRdX*dBPdX)/R \
+                - dRdX*dBPdX/R
+        d2BPdXdY = (-dBXdX - Y*d2BXdXdY + dBYdY + X*d2BYdXdY- d2RdXdY*BP - dRdX*dBPdY)/R \
+                - dRdY*dBPdX/R
+        d2BPdXdZ = (-Y*d2BXdXdZ + dBYdZ + X*d2BYdXdZ - dRdX*dBPdZ)/R 
+        
+        """
+        dBPdY = (-BX - Y*dBXdY + X*dBYdY - dRdY*BP)/R
+        """
+        
+        d2BPdY2 = (-2*dBXdY - Y*d2BXdY2 + X*d2BYdY2 - d2RdY2*BP - dRdY*dBPdY)/R \
+                - dRdY*dBPdY/R
+        d2BPdYdZ = (-dBXdZ -Y*d2BXdYdZ + X*d2BYdYdZ - dRdY*dBPdZ)/R 
+        
+        """
+        dBPdZ = (-Y*dBXdZ + X*dBYdZ)/R 
+        """
+                
+        d2BPdZ2 = (-Y*d2BXdZ2 + X*d2BYdZ2)/R
+
+        """
+        dBRdR
+        """
+
+        dBRdR = (dBRdX*X + dBRdY*Y)/R
+        
+        dBRdR_dX = (d2BRdX2*X + dBRdX + d2BRdXdY*Y)/R \
+            - dBRdR*dRdX/R
+        dBRdR_dY = (d2BRdXdY*X + d2BRdY2*Y + dBRdY)/R \
+            - dBRdR*dRdY/R
+        d2BRdRdZ = (d2BRdXdZ*X + d2BRdYdZ*Y)/R
+        
+        d2BRdR2 = (dBRdR_dX*X + dBRdR_dY*Y)/R
+        
+        """
+        dBPdR
+        """
+        
+        dBPdR = (dBPdX*X + dBPdY*Y)/R
+        
+        dBPdR_dX = (d2BPdX2*X + dBPdX + d2BPdXdY*Y)/R \
+            - dBPdR*dRdX/R
+        dBPdR_dY = (d2BPdXdY*X + d2BPdY2*Y + dBPdY)/R \
+            - dBPdR*dRdY/R
+        d2BPdRdZ = (d2BPdXdZ*X + d2BPdYdZ*Y)/R
+        d2BPdR2 = (dBPdR_dX*X + dBPdR_dY*Y)/R
+        
+        """
+        dBZdR
+        """
+        
+        dBZdR = (dBZdX*X + dBZdY*Y)/R
+        
+        dBZdR_dX = (d2BZdX2*X + dBZdX + d2BZdXdY*Y)/R \
+            - dBZdR*dRdX/R 
+        dBZdR_dY = (d2BZdXdY*X + d2BZdY2*Y + dBZdY)/R \
+            - dBZdR*dRdY/R
+        d2BZdRdZ = (d2BZdXdZ*X + d2BZdYdZ*Y)/R
+        d2BZdR2 = (dBZdR_dX*X + dBZdR_dY*Y)/R
+        
+        """
+        dBRdZ
+        """
+        
+        dBRdZ = (dBXdZ*X + dBYdZ*Y)/R
+        
+        dBRdZ_dX = (d2BXdXdZ*X + dBXdZ + d2BYdXdZ*Y)/R \
+            - dBRdZ*dRdX/R
+        dBRdZ_dY = (d2BXdYdZ*X + d2BYdYdZ*Y + dBYdZ)/R \
+            - dBRdZ*dRdY/R
+        d2BRdZ2  = (d2BXdZ2*X + d2BYdZ2*Y)/R
+        d2BRdZdR = (dBRdZ_dX*X + dBRdZ_dY*Y)/R
+                
+        """
+        dBPdZ
+        """
+        
+        dBPdZ = (-dBXdZ*Y + dBYdZ*X)/R
+
+        dBPdZ_dX = (-d2BXdXdZ*Y + d2BYdXdZ*X + dBYdZ)/R \
+            - dBPdZ*dRdX/R
+        dBPdZ_dY = (-d2BXdYdZ*Y - dBXdZ + d2BYdYdZ*X)/R \
+            - dBPdZ*dRdY/R
+        d2BPdZ2 = (-d2BXdZ2*Y + d2BYdZ2*X)/R
+        d2BPdZdR = (dBPdZ_dX*X + dBPdZ_dY*Y)/R
+                
+        dmdR = np.zeros((4,len(R)))
+        dmdZ = np.zeros((4,len(Z)))
+        
+        """
+        m[...,0] = BR/BP + R*(dBRdR/BP - BR*dBPdR/BP**2)
+        """
+
+        dmdR[0,...] = dBRdR/BP - BR*dBPdR/(BP**2) + (dBRdR/BP - BR*dBPdR/BP**2) \
+            + R*(d2BRdR2/BP - dBRdR*dBPdR/BP**2 - dBRdR*dBPdR/BP**2 
+                - BR*d2BPdR2/BP**2 + 2*BR*dBPdR*dBPdR/BP**3)
+        dmdZ[0,...] = dBRdZ/BP - BR*dBPdZ/(BP**2) \
+            + R*(d2BRdRdZ/BP - dBRdR*dBPdZ/BP**2 - dBRdZ*dBPdR/BP**2
+                - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdR*dBPdZ/BP**3)
+        
+        """
+        m[...,1] = R*(dBRdZ/BP - BR*dBPdZ/BP**2)
+        """
+        
+        dmdR[1,...] = (dBRdZ/BP - BR*dBPdZ/BP**2) \
+            + R*(d2BRdRdZ/BP - dBRdZ*dBPdR/BP**2 - dBRdR*dBPdZ/BP**2
+                - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdZ*dBPdR/BP**3)
+        dmdZ[1,...] = R*(d2BRdZ2/BP - dBRdZ*dBPdZ/BP**2 
+                        - dBRdZ*dBPdZ/BP**2 - BR*d2BPdZ2/BP**2 
+                        + 2*BR*dBPdZ*dBPdZ/BP**3)
+        
+        """
+        m[...,2] = BZ/BP + R*(dBZdR/BP - BZ*dBPdR/BP**2)
+        """
+        dmdR[2,...] = dBZdR/BP - BZ*dBPdR/BP**2 + (dBZdR/BP - BZ*dBPdR/BP**2) \
+            + R*(d2BZdR2/BP - dBZdR*dBPdR/BP**2 - dBZdR*dBPdR/BP**2
+                - BZ*d2BPdR2/BP**2 + 2*BZ*dBPdR*dBPdR/BP**3)
+        dmdZ[2,...] = dBZdZ/BP - BZ*dBPdZ/BP**2 \
+            + R*(d2BZdRdZ/BP - dBZdR*dBPdZ/BP**2 - dBZdZ*dBPdR/BP**2
+                - BZ*d2BPdRdZ/BP**2 + 2*BZ*dBPdR*dBPdZ/BP**3)
+        
+        """
+        m[...,3] = R*(dBZdZ/BP - BZ*dBPdZ/BP**2)
+        """
+        dmdR[3,...] = (dBZdZ/BP - BZ*dBPdZ/BP**2) \
+            + R*(d2BZdRdZ/BP - dBZdZ*dBPdR/BP**2 - dBZdR*dBPdZ/BP**2
+                - BZ*d2BPdRdZ/BP**2 + 2*BZ*dBPdZ*dBPdR/BP**3)
+        dmdZ[3,...] = R*(d2BZdZ2/BP - dBZdZ*dBPdZ/BP**2 - dBZdZ*dBPdZ/BP**2
+                        - BZ*d2BPdZ2/BP**2 + 2*BZ*dBPdZ*dBPdZ/BP**3)
+        
+#         dBRdR = (X**2*dBXdX + X*Y * (dBYdX + dBXdY) + Y**2 * dBYdY)/(R**2)
+#         dBPdR = (X*Y * (dBYdY-dBXdX) + X**2 * dBYdX - Y**2 * dBXdY)/(R**2)
+#         dBZdR =  dBZdX*X/R + dBZdY*Y/R
+#         dBRdZ =  dBXdZ*X/R + dBYdZ*Y/R
+#         dBPdZ = -dBXdZ*Y/R + dBYdZ*X/R
+
+
+
 #       dBRdR = (X**2*dBXdX + X*Y * (dBYdX + dBXdY) + Y**2 * dBYdY)/(R**2)
 #         d2BRdR2 = ((2 * X * dBXdX + X**2 * d2BXdX2 + Y * (dBYdX  + dBXdY)
 #             + X * Y * (d2BYdX2 + d2BXdXdY)  + Y**2 * d2BYdXdY) * np.cos(phi) \
 #             + (X**2 * d2BXdXdY + X * (dBYdX + dBXdY) + X * Y * (d2BYdXdY + d2BXdY2)
 #             + 2 * Y * dBYdY + Y**2 * d2BYdY2)*np.sin(phi))/(R**2) \
 #             - 2*dBRdR/R
-        d2BRdR2 = (X * Y**2 * d2BXdY2 + Y**3 * d2BYdY2
-                   + X*(2*X*Y*d2BXdXdY + 2 * Y**2 * d2BYdXdY + X**2 * d2BXdX2
-                       + X*Y*d2BYdX2))/R**3
+#         d2BRdR2 = (X * Y**2 * d2BXdY2 + Y**3 * d2BYdY2
+#                    + X*(2*X*Y*d2BXdXdY + 2 * Y**2 * d2BYdXdY + X**2 * d2BXdX2
+#                        + X*Y*d2BYdX2))/R**3
 
-        d2BRdRdZ = (X**2*d2BXdXdZ + X*Y * (d2BYdXdZ + d2BXdYdZ)
-                    + Y**2 * d2BYdYdZ)/(R**2)
+#         d2BRdRdZ = (X**2*d2BXdXdZ + X*Y * (d2BYdXdZ + d2BXdYdZ)
+#                     + Y**2 * d2BYdYdZ)/(R**2)
 #         dBPdR = (X*Y * (dBYdY-dBXdX) + X**2 * dBYdX - Y**2 * dBXdY)/(R**2)
 #         d2BPdR2 = ((Y * (dBYdY-dBXdX) + X * Y * (d2BYdXdY - d2BXdX2)
 #                   + 2 * X * dBYdX + X**2 * d2BYdX2 - Y**2 * d2BXdXdY) * np.cos(phi) \
 #             + (X * (dBYdY-dBXdX) + X*Y* (d2BYdY2-d2BXdXdY) + X**2 * d2BYdXdY
 #               - 2 * Y * dBXdY - Y**2 * d2BXdY2) * np.sin(phi))/(R**2) \
 #             - 2*dBPdR/R
-        d2BPdR2 = (-Y**3 * d2BXdY2 + X*Y*(Y*d2BYdY2 - 2*Y*d2BXdXdY + 2*X*d2BYdXdY
-                                         - X * d2BXdX2 + X**3 * d2BYdX2))/R**3
+#         d2BPdR2 = (-Y**3 * d2BXdY2 + X*Y*(Y*d2BYdY2 - 2*Y*d2BXdXdY + 2*X*d2BYdXdY
+#                                          - X * d2BXdX2 + X**3 * d2BYdX2))/R**3
 
-        d2BPdRdZ = (X*Y * (d2BYdYdZ-d2BXdXdZ) + X**2 * d2BYdXdZ
-                    - Y**2 * d2BXdYdZ)/(R**2)
+#         d2BPdRdZ = (X*Y * (d2BYdYdZ-d2BXdXdZ) + X**2 * d2BYdXdZ
+#                     - Y**2 * d2BXdYdZ)/(R**2)
 #         dBZdR =  dBZdX*X/R + dBZdY*Y/R
 #         d2BZdR2 = ((dBZdX + X * d2BZdX2 + Y * d2BZdXdY) * np.cos(phi)
 #                  + (X * d2BZdXdY + dBZdY + Y * d2BZdY2) * np.sin(phi))/R \
 #                 - dBZdR/R
-        d2BZdR2 = (Y**2 * d2BZdY2 + 2*X*Y*d2BZdXdY + X**2 * d2BZdX2)/(R**2)
+#         d2BZdR2 = (Y**2 * d2BZdY2 + 2*X*Y*d2BZdXdY + X**2 * d2BZdX2)/(R**2)
 
-        d2BZdRdZ = (d2BZdXdZ*X + d2BZdYdZ*Y)/R
+#         d2BZdRdZ = (d2BZdXdZ*X + d2BZdYdZ*Y)/R
 #         dBRdZ =  dBXdZ*X/R + dBYdZ*Y/R
 #         d2BRdRdZ = ((dBXdZ + X * d2BXdXdZ + Y * d2BYdXdZ) * np.cos(phi)
 #                   + (X * d2BXdYdZ + dBYdZ + Y * d2BYdYdZ) * np.sin(phi))/R \
 #                   - dBRdZ/R
-        d2BRdRdZ = (Y**2 * d2BYdYdZ + X**2 * d2BXdXdZ + X*Y*(d2BXdYdZ + d2BYdXdZ))/(R**2)
-        d2BRdZ2 = (d2BXdZ2*X + d2BYdZ2*Y)/R
+#         d2BRdRdZ = (Y**2 * d2BYdYdZ + X**2 * d2BXdXdZ + X*Y*(d2BXdYdZ + d2BYdXdZ))/(R**2)
+#         d2BRdZ2 = (d2BXdZ2*X + d2BYdZ2*Y)/R
 #         dBPdZ = -dBXdZ*Y/R + dBYdZ*X/R
 #         d2BPdRdZ = ((- Y * d2BXdXdZ + dBYdZ + X * d2BYdXdZ)*np.cos(phi)
 #                   + (- dBXdZ + Y * d2BXdYdZ + X * d2BYdYdZ)*np.sin(phi))/R \
 #                   - dBPdZ/R
-        d2BPdRdZ = (-Y**2 * d2BXdYdZ + X*(Y*d2BYdYdZ-Y*d2BXdXdZ+X*d2BYdXdZ))/(R**2)
-        d2BPdZ2 = (-d2BXdZ2*Y + d2BYdZ2*X)/R
+#         d2BPdRdZ = (-Y**2 * d2BXdYdZ + X*(Y*d2BYdYdZ-Y*d2BXdXdZ+X*d2BYdXdZ))/(R**2)
+#         d2BPdZ2 = (-d2BXdZ2*Y + d2BYdZ2*X)/R
 
-        dmdR = np.zeros((4,len(R)))
-        dmdZ = np.zeros((4,len(Z)))
+#         dmdR = np.zeros((4,len(R)))
+#         dmdZ = np.zeros((4,len(Z)))
 
 #       m[...,0] = BR/BP + R*(dBRdR/BP - BR*dBPdR/BP**2)
-        dmdR[0,...] = dBRdR/BP - BR*dBPdR/BP**2 \
-            + R*(d2BRdR2/BP - dBRdR*dBPdR/BP**2 - dBRdR*dBPdR/BP**2
-                - BR*d2BPdR2/BP**2 + 2*BR*dBPdR*dBPdR/BP**3) \
-            + (dBRdR/BP - BR*dBPdR/BP**2)
-        dmdZ[0,...] = dBRdZ/BP - BR*dBPdZ/BP**2 \
-            + R*(d2BRdRdZ/BP - dBRdR*dBPdZ/BP**2 - dBRdZ*dBPdR/BP**2
-                - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdR*dBPdZ/BP**3)
-#       m[...,1] = R*(dBRdZ/BP - BR*dBPdZ/BP**2)
-        dmdR[1,...] = R*(d2BRdRdZ/BP - dBRdZ*dBPdR/BP**2 - dBRdR*dBPdZ/BP**2
-                - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdZ*dBPdR/BP**3) \
-                + (dBRdZ/BP - BR*dBPdZ/BP**2)
-        dmdZ[1,...] = R*(d2BRdZ2/BP - dBRdZ*dBPdZ/BP**2 - dBRdZ*dBPdZ/BP**2
-                - BR*d2BPdZ2/BP**2 + 2*BR*dBPdZ*dBPdZ/BP**3)
-#       m[...,2] = BZ/BP + R*(dBZdR/BP - BZ*dBPdR/BP**2)
-        dmdR[2,...] = dBZdR/BP - BZ*dBPdR/BP**2 \
-            + R*(d2BZdR2/BP - dBZdR*dBPdR/BP**2 - dBZdR*dBPdR/BP**2
-                - BZ*d2BPdR2/BP**2 + 2*BZ*dBPdR*dBPdR/(BP**3)) \
-                + (dBZdR/BP - BZ*dBPdR/BP**2)
-        dmdZ[2,...] = dBZdZ/BP - BZ*dBPdZ/BP**2 \
-            + R*(d2BZdRdZ/BP - dBPdZ*dBZdR/BP**2 - dBZdZ*dBPdR/BP**2
-                - BZ*d2BPdRdZ/BP**2 + 2 * BZ * dBPdR * dBPdZ/BP**3)
-#       m[...,3] = R*(dBZdZ/BP - BZ*dBPdZ/BP**2)
-        dmdR[3,...] = R*(d2BZdRdZ/BP - dBZdZ*dBPdR/BP**2
-                - dBZdR*dBPdZ/BP**2 - BZ*d2BPdRdZ/BP**2 + 2*BZ*dBPdZ*dBPdR/BP**3) \
-                + (dBZdZ/BP - BZ*dBPdZ/BP**2)
-        dmdZ[3,...] = R*(d2BZdZ2/BP - dBZdZ*dBPdZ/BP**2
-                - dBZdZ*dBPdZ/BP**2 - BZ*d2BPdZ2/BP**2 + 2*BZ*dBPdZ*dBPdZ/BP**3)
+
+#         dmdR[0,...] = dBRdR/BP - BR*dBPdR/BP**2 \
+#             + R*(d2BRdR2/BP - dBRdR*dBPdR/BP**2 - dBRdR*dBPdR/BP**2
+#                 - BR*d2BPdR2/BP**2 + 2*BR*dBPdR*dBPdR/BP**3) \
+#             + (dBRdR/BP - BR*dBPdR/BP**2)
+#         dmdZ[0,...] = dBRdZ/BP - BR*dBPdZ/BP**2 \
+#             + R*(d2BRdRdZ/BP - dBRdR*dBPdZ/BP**2 - dBRdZ*dBPdR/BP**2
+#                 - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdR*dBPdZ/BP**3)
+# #       m[...,1] = R*(dBRdZ/BP - BR*dBPdZ/BP**2)
+#         dmdR[1,...] = R*(d2BRdRdZ/BP - dBRdZ*dBPdR/BP**2 - dBRdR*dBPdZ/BP**2
+#                 - BR*d2BPdRdZ/BP**2 + 2*BR*dBPdZ*dBPdR/BP**3) \
+#                 + (dBRdZ/BP - BR*dBPdZ/BP**2)
+#         dmdZ[1,...] = R*(d2BRdZ2/BP - dBRdZ*dBPdZ/BP**2 - dBRdZ*dBPdZ/BP**2
+#                 - BR*d2BPdZ2/BP**2 + 2*BR*dBPdZ*dBPdZ/BP**3)
+# #       m[...,2] = BZ/BP + R*(dBZdR/BP - BZ*dBPdR/BP**2)
+#         dmdR[2,...] = dBZdR/BP - BZ*dBPdR/BP**2 \
+#             + R*(d2BZdR2/BP - dBZdR*dBPdR/BP**2 - dBZdR*dBPdR/BP**2
+#                 - BZ*d2BPdR2/BP**2 + 2*BZ*dBPdR*dBPdR/(BP**3)) \
+#                 + (dBZdR/BP - BZ*dBPdR/BP**2)
+#         dmdZ[2,...] = dBZdZ/BP - BZ*dBPdZ/BP**2 \
+#             + R*(d2BZdRdZ/BP - dBPdZ*dBZdR/BP**2 - dBZdZ*dBPdR/BP**2
+#                 - BZ*d2BPdRdZ/BP**2 + 2 * BZ * dBPdR * dBPdZ/BP**3)
+# #       m[...,3] = R*(dBZdZ/BP - BZ*dBPdZ/BP**2)
+#         dmdR[3,...] = R*(d2BZdRdZ/BP - dBZdZ*dBPdR/BP**2
+#                 - dBZdR*dBPdZ/BP**2 - BZ*d2BPdRdZ/BP**2 + 2*BZ*dBPdZ*dBPdR/BP**3) \
+#                 + (dBZdZ/BP - BZ*dBPdZ/BP**2)
+#         dmdZ[3,...] = R*(d2BZdZ2/BP - dBZdZ*dBPdZ/BP**2
+#                 - dBZdZ*dBPdZ/BP**2 - BZ*d2BPdZ2/BP**2 + 2*BZ*dBPdZ*dBPdZ/BP**3)
 
         return dmdR, dmdZ
 
@@ -982,8 +1227,9 @@ class TangentMap():
             self.update_solutions()
         axis = self.axis_poly(phi)
         mu = self.adjoint_axis_poly(phi)
-
+        
         d_V_by_dcoilcurrents = self.compute_d_V_dcoilcurrents(phi,self.axis_poly)
+        
         d_res_axis_dcoilcurrents = []
         for i in range(len(d_V_by_dcoilcurrents)):
             d_V = d_V_by_dcoilcurrents[i]
@@ -1039,44 +1285,261 @@ class TangentMap():
                                                     adjoint_tangent_poly)
         else:
             fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly)
-        if self.adjoint_axis_bvp:
+            
+        # Generate initial guess using linear method
+        if self.adjoint_axis_fd:
+            nphi = len(phi)-1
+            dphi = phi[1]-phi[0]
+            
+            n1= np.floor((nphi-1)/2).astype(int)
+            n2= np.ceil((nphi-1)/2).astype(int)
+            kk = np.array(range(1,nphi))
+            if (np.remainder(nphi,2)==0):
+                topc = 1/np.tan(np.array(range(1,n2+1))*dphi/2)
+                col1 = np.concatenate((np.array([0]),0.5*((-1)**(kk[0:n2]))*topc,-0.5*((-1)**(kk[n2:nphi]))*np.flipud(topc[0:n1])))
+            else:
+                topc = 1/np.sin(np.array(range(1,n2+1))*dphi/2)
+                col1 = np.concatenate((np.array([0]),0.5*((-1)**(kk[0:n2]))*topc, 0.5*((-1)**(kk[n2:nphi]))*np.flipud(topc[0:n1])))
+
+            row1 = -col1
+            DM = scipy.linalg.toeplitz(col1,row1)
+            matrix = np.zeros((2*nphi,2*nphi))
+            matrix[0:nphi,0:nphi] = DM
+            matrix[nphi::,nphi::] = DM
+            
+            rhs = np.zeros((2*nphi,))
+            V = fun(phi,None)
+            rhs[0:nphi] = V[0,0:nphi]
+            rhs[nphi::] = V[1,0:nphi]
+            m = self.compute_m(phi,axis_poly(phi))
+            for i in range(nphi):
+                matrix[i,i] += m[0,i]
+                matrix[i,nphi+i-1] += m[2,i]
+                matrix[nphi+i-1,i] += m[1,i]
+                matrix[nphi+i-1,nphi+i-1] += m[3,i]
+
+            sol = np.linalg.solve(matrix,rhs)
+            y0 = np.zeros((2,nphi+1))
+            y0[0,0:nphi] = sol[0:nphi]
+            y0[0,-1] = y0[0,0]
+            y0[1,0:nphi] = sol[nphi:2*nphi]
+            y0[1,-1] = y0[1,0]
+        else:
             if self.adjoint_axis_poly is not None:
                 y0 = self.adjoint_axis_poly(phi)
             else:
-                y0 = axis_poly(phi)
-
+                y0 = axis_poly(phi)                      
+            
+        if self.adjoint_axis_bvp:
             fun_jac = lambda x, y : self.jac_adjoint(x,y,axis_poly)
             out = scipy.integrate.solve_bvp(fun=fun,
                                             bc=self.bc_fun_axis,
                                             x=phi,y=y0,fun_jac=fun_jac,
                                             bc_jac=self.bc_jac,verbose=self.verbose,
                                             tol=self.bvp_tol,max_nodes=self.max_nodes)
-            # Now check solution
-            out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
-                        vectorized=False,rtol=self.rtol,atol=self.atol,
-                                    t_eval=phi,dense_output=True,
-                                           method=self.method)
-            yend = out_check.sol(2*np.pi)
-            print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
+            
+            print('adjoint axis y0: ', out.sol(0))
+            print('adjoint axis yend: ', out.sol(2*np.pi))
+
+            if (self.check_adjoint):
+                # Now check solution
+                out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
+                            vectorized=False,rtol=self.rtol,atol=self.atol,
+                                        t_eval=phi,dense_output=True,
+                                               method=self.method,min_step=self.min_step)
+                yend = out_check.sol(2*np.pi)
+                print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
             
             if (out.status==0):
                 # Evaluate polynomial on grid
                 return out.sol(phi), out.sol
             else:
                 raise RuntimeError('Error ocurred in integration of axis.')
+#         elif self.adjoint_axis_fd:
+#             nphi = len(phi)-1
+#             dphi = phi[1]-phi[0]
+            
+#             n1= np.floor((nphi-1)/2).astype(int)
+#             n2= np.ceil((nphi-1)/2).astype(int)
+#             kk = np.array(range(1,nphi))
+#             if (np.remainder(nphi,2)==0):
+#                 topc = 1/np.tan(np.array(range(1,n2+1))*dphi/2)
+#                 col1 = np.concatenate((np.array([0]),0.5*((-1)**(kk[0:n2]))*topc,-0.5*((-1)**(kk[n2:nphi]))*np.flipud(topc[0:n1])))
+#             else:
+#                 topc = 1/np.sin(np.array(range(1,n2+1))*dphi/2)
+#                 col1 = np.concatenate((np.array([0]),0.5*((-1)**(kk[0:n2]))*topc, 0.5*((-1)**(kk[n2:nphi]))*np.flipud(topc[0:n1])))
+
+#             row1 = -col1
+#             DM = scipy.linalg.toeplitz(col1,row1)
+#                   if rem(N,2)==0                         
+#                     topc=cot((1:n2)'*h/2);
+#                     col1=[0; 0.5*((-1).^kk).*[topc; -flipud(topc(1:n1))]]; 
+#                   else
+#                     topc=csc((1:n2)'*h/2);
+#                     col1=[0; 0.5*((-1).^kk).*[topc; flipud(topc(1:n1))]];
+#                   end;
+#                   row1=-col1;                            % first row
+#                 DM=toeplitz(col1,row1);                   
+            
+#             matrix = np.zeros((2*nphi,2*nphi))
+#             matrix[0:nphi,0:nphi] = DM
+#             matrix[nphi::,nphi::] = DM
+            
+#             rhs = np.zeros((2*nphi,))
+#             V = fun(phi,None)
+#             rhs[0:nphi] = V[0,0:nphi]
+#             rhs[nphi::] = V[1,0:nphi]
+#             m = self.compute_m(phi,axis_poly(phi))
+#             for i in range(nphi):
+#                 matrix[i,i] += m[0,i]
+#                 matrix[i,nphi+i-1] += m[2,i]
+#                 matrix[nphi+i-1,i] += m[1,i]
+#                 matrix[nphi+i-1,nphi+i-1] += m[3,i]
+#                 if (i==0):
+#                     matrix[i,nphi-1] += -8/(12*dphi)
+#                     matrix[nphi+i,2*nphi-1] += -8/(12*dphi)   
+#                     matrix[i,nphi-2] += 1/(12*dphi)
+#                     matrix[nphi+i,2*nphi-2] += 1/(12*dphi)   
+#                 elif (i==1):
+#                     matrix[i,i-1] += -8/(12*dphi)
+#                     matrix[nphi+i,nphi+i-1] += -8/(12*dphi)   
+#                     matrix[i,nphi-1] += 1/(12*dphi)
+#                     matrix[nphi+i,2*nphi-1] += 1/(12*dphi)  
+#                 else:
+#                     matrix[i,i-1] += -8/(12*dphi)
+#                     matrix[nphi+i,nphi+i-1] += -8/(12*dphi)
+#                     matrix[i,i-2] += 1/(12*dphi)
+#                     matrix[nphi+i,nphi+i-2] += 1/(12*dphi)
+#                 if (i==nphi-1):
+#                     matrix[i,0] += 8/(12*dphi)
+#                     matrix[nphi+i,nphi] += 8/(12*dphi)   
+#                     matrix[i,1] += -1/(12*dphi)
+#                     matrix[nphi+i,nphi+1] += -1/(12*dphi)   
+#                 elif (i==nphi-2):
+#                     matrix[i,i+1] += 8/(12*dphi)
+#                     matrix[nphi+i,nphi+i+1] += 8/(12*dphi)   
+#                     matrix[i,0] += -1/(12*dphi)
+#                     matrix[nphi+i,nphi] += -1/(12*dphi)         
+#                 else:
+#                     matrix[i,i+1] += 8/(12*dphi)
+#                     matrix[nphi+i,nphi+i+1] += 8/(12*dphi)   
+#                     matrix[i,i+2] += -1/(12*dphi)
+#                     matrix[nphi+i,nphi+i+2] += -1/(12*dphi)        
+        
+                 
+#                 if (i<2):
+#                     matrix[i,len(phi)-1] += -8/(12*dphi)
+#                     matrix[len(phi)+i,2*len(phi)-1] += -8/(12*dphi)                    
+
+                    
+
+#                 if (i<len(phi)-1):
+#                     matrix[i,i+1] += 1/(2*dphi)
+#                     matrix[len(phi)+i,len(phi)+i+1] += 1/(2*dphi)
+#                 else:
+#                     matrix[i,0] += 1/(2*dphi)
+#                     matrix[len(phi)+i,len(phi)] += 1/(2*dphi)
+                    
+#             sol = np.linalg.solve(matrix,rhs)
+#             y0 = np.zeros((2,nphi+1))
+#             y0[0,0:nphi] = sol[0:nphi]
+#             y0[0,-1] = y0[0,0]
+#             y0[1,0:nphi] = sol[nphi:2*nphi]
+#             y0[1,-1] = y0[1,0]
+            
+#             print('y0: ',y0[:,0])
+#             print('yend: ',y0[:,-1])
+            
+#             import matplotlib.pyplot as plt
+            
+#             plt.figure()
+#             plt.plot(phi,y0[0,:])
+            
+#             plt.figure()
+#             plt.plot(phi,y0[1,:])
+            
+#             plt.show()]
+#             self.adjoint_axis_fd = False
+            
+#             y0 = y0[:,0]
+#             t_span = (0,2*np.pi)
+#             for niter in range(self.maxiter):
+#                 out = scipy.integrate.solve_ivp(fun,t_span,y0,
+#                             vectorized=False,rtol=self.rtol,atol=self.atol,
+#                                         t_eval=phi,dense_output=True,
+#                                         method=self.method,min_step=self.min_step)
+#                 yend = out.sol(2*np.pi)
+#                 print('adjoint yend: ', yend)
+#                 print('adjoint y0: ',y0)
+#                 print('np.shape(y0): ',np.shape(y0))
+#                 if (self.verbose):
+#                     print('Norm: ',np.linalg.norm(yend-y0))
+# #                 if (np.linalg.norm(yend-y0))/np.linalg.norm(y0) < self.tol:
+#                 if (np.abs(yend[0]-y0[0]) < self.tol and np.abs(yend[1]-y0[1]) < self.tol):
+#                     if (self.verbose):
+#                         print('yend: ',yend)
+#                         print('y0: ',y0)
+#                         print('Newton iteration converged')
+#                     break
+# #                     return out.y, out.sol
+#                 if self.constrained:
+#                     tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),axis_poly,adjoint=True)
+#                 else:
+#                     tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),axis_poly=None,adjoint=True)
+
+#                 U = np.zeros((2,2))
+#                 U[0,0] = tangent_sol[0]
+#                 U[0,1] = tangent_sol[1]
+#                 U[1,0] = tangent_sol[2]
+#                 U[1,1] = tangent_sol[3]
+#                 mat = np.eye(2) - U
+#                 step = np.linalg.solve(mat,yend-y0)
+#                 y0 += step
+                
+#             self.adjoint_axis_fd = True
+
+#             if (niter == self.maxiter-1):
+#                 raise RuntimeError('Exceeded maxiter in compute_adjoint_axis.')    
+#             else: 
+#                 return out.y, out.sol
+
+#             fun_jac = lambda x, y : self.jac_adjoint(x,y,axis_poly)
+#             out = scipy.integrate.solve_bvp(fun=fun,
+#                                             bc=self.bc_fun_axis,
+#                                             x=phi,y=y0,fun_jac=fun_jac,
+#                                             bc_jac=self.bc_jac,verbose=self.verbose,
+#                                             tol=self.bvp_tol,max_nodes=self.max_nodes)
+            
+#             if (self.check_adjoint):
+
+            # Now check solution
+#             out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
+#                         vectorized=False,rtol=self.rtol,atol=self.atol,
+#                                     t_eval=phi,dense_output=True,
+#                                            method=self.method,min_step=self.min_step)
+#             yend = out_check.sol(2*np.pi)
+#             print('yend: ',yend)
+#             print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
+#             self.adjoint_axis_fd = True
+            
+#             return out_check.sol(phi), out_check.sol
+                
+#             y0_poly = scipy.interpolate.interp1d(phi,y0)
+            
+#             return y0, y0_poly    
         else:
-            if (self.adjoint_axis_poly is not None):
-                y0 = self.adjoint_axis_poly(0)
-            else:
-                y0 = axis_poly(0)
+#             if (self.adjoint_axis_poly is not None):
+#                 y0 = self.adjoint_axis_poly(0)
+#             else:
+#                 y0 = axis_poly(0)
                 
             t_span = (0,2*np.pi)
             niter = 0
             for niter in range(self.maxiter):
-                out = scipy.integrate.solve_ivp(fun,t_span,y0,
+                out = scipy.integrate.solve_ivp(fun,t_span,y0[:,0],
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
-                                               method=self.method)
+                                        method=self.method,min_step=self.min_step)
                 yend = out.sol(2*np.pi)
                 if (self.verbose):
                     print('Norm: ',np.linalg.norm(yend-y0))
@@ -1144,7 +1607,7 @@ class TangentMap():
                 out = scipy.integrate.solve_ivp(self.rhs_fun_axis,t_span,y0,
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
-                                               method=self.method)
+                                        method=self.method,min_step=self.min_step)
                 yend = out.sol(2*np.pi)
                 if self.verbose:
                     print('Norm: ',np.linalg.norm(yend-y0))
@@ -1206,7 +1669,7 @@ class TangentMap():
         V[1,...] = R*BZ/BP
         return V
 
-    def rhs_fun_adjoint(self,phi,eta,axis_poly,tangent_poly=None,adjoint_poly=None):
+    def rhs_fun_adjoint(self,phi,eta=None,axis_poly=None,tangent_poly=None,adjoint_poly=None):
         """
         Compute rhs of adjoint problem for res_axis metric, i.e.
             mu'(\phi) = V(phi)
@@ -1238,9 +1701,7 @@ class TangentMap():
                 + lam[3,...]*(dmdZ[2,...]*M[1,...] + dmdZ[3,...]*M[3,...])
             iota = self.compute_iota()
             fac = -1/(4*np.pi*np.sin(2*np.pi*iota))
-            m = self.compute_m(phi,axis_poly(phi))
         else:
-            m = self.compute_m(phi)
             if np.ndim(phi) == 0:
                 self.magnetic_axis.points = np.array([phi/(2*np.pi)])
             else:
@@ -1249,35 +1710,25 @@ class TangentMap():
             gamma_ma = self.magnetic_axis.gamma
             R_ma = np.sqrt(gamma_ma[...,0]**2 + gamma_ma[...,1]**2)
             Z_ma = gamma_ma[...,2]
+            
+        m = self.compute_m(phi,axis_poly(phi))
 
-        axis = axis_poly(phi)
-        if (np.ndim(phi)>0):
-            gamma = np.zeros((len(phi),3))
-        else:
-            gamma = np.zeros((1,3))
-        gamma[...,0] = axis[0,...]*np.cos(phi)
-        gamma[...,1] = axis[0,...]*np.sin(phi)
-        gamma[...,2] = axis[1,...]
-        X = gamma[...,0]
-        Y = gamma[...,1]
-        Z = gamma[...,2]
-        self.biotsavart.compute(gamma)
-
-        B = self.biotsavart.B
-        BX = B[...,0]
-        BY = B[...,1]
-        BZ = B[...,2]
-        R = np.sqrt(X**2 + Y**2)
-        BR =  X*BX/R + Y*BY/R
-        BP = -Y*BX/R + X*BY/R
         if (np.ndim(phi)>0):
             V = np.zeros((2,len(phi)))
         else:
             V = np.zeros((2))
-        if (self.constrained):
-            V[0,...] = -m[0,...]*eta[0,...] - m[2,...]*eta[1,...] - fac*lambda_dot_dmdR_times_M
-            V[1,...] = -m[3,...]*eta[1,...] - m[1,...]*eta[0,...] - fac*lambda_dot_dmdZ_times_M
+        if (self.constrained and self.adjoint_axis_fd==False):
+            V[0,...] = -m[0,...]*eta[0,...] -m[2,...]*eta[1,...] - fac*lambda_dot_dmdR_times_M
+            V[1,...] = -m[3,...]*eta[1,...] -m[1,...]*eta[0,...] - fac*lambda_dot_dmdZ_times_M
+        elif (self.constrained and self.adjoint_axis_fd):
+            V[0,...] =  - fac*lambda_dot_dmdR_times_M
+            V[1,...] =  - fac*lambda_dot_dmdZ_times_M    
+        elif (self.constrained==False and self.adjoint_axis_fd):
+            axis = axis_poly(phi)
+            V[0,...] = axis[0,...] - R_ma
+            V[1,...] = axis[1,...] - Z_ma            
         else:
+            axis = axis_poly(phi)
             V[0,...] = -m[0,...]*eta[0,...] - m[2,...]*eta[1,...] + axis[0,...] - R_ma
             V[1,...] = -m[3,...]*eta[1,...] - m[1,...]*eta[0,...] + axis[1,...] - Z_ma
         return V
@@ -1384,7 +1835,7 @@ class TangentMap():
             d_BZ = d_B[...,2]
 
             d_BR =  (X * d_BX + Y * d_BY)/R
-            d_BP = (-Y * d_BX + X * d_BY)/R
+            d_BP =  (-Y * d_BX + X * d_BY)/R
 
             d_V = np.zeros((2,np.shape(d_BR)[0]))
             d_V[0,...] = R * (d_BR/BP - BR*d_BP/BP**2)
