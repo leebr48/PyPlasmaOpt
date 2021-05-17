@@ -1279,15 +1279,15 @@ class TangentMap():
                 representing tangent map solution
             adjoint_tangent_poly (instance of scipy.interpolate.PPoly cubic spline): polyomial
                 representing adjoint variable for tangent map
-        """
-        if (self.constrained):
-            fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly,tangent_poly,
-                                                    adjoint_tangent_poly)
-        else:
-            fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly)
-            
+        """            
         # Generate initial guess using linear method
         if self.adjoint_axis_fd:
+            if (self.constrained):
+                fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly,tangent_poly,
+                                                        adjoint_tangent_poly,adjoint_fd=True)
+            else:
+                fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly,adjoint_fd=True)
+            
             nphi = len(phi)-1
             dphi = phi[1]-phi[0]
             
@@ -1328,7 +1328,13 @@ class TangentMap():
             if self.adjoint_axis_poly is not None:
                 y0 = self.adjoint_axis_poly(phi)
             else:
-                y0 = axis_poly(phi)                      
+                y0 = axis_poly(phi)        
+                
+        if (self.constrained):
+            fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly,tangent_poly,
+                                                    adjoint_tangent_poly)
+        else:
+            fun = lambda x,y : self.rhs_fun_adjoint(x,y,axis_poly)
             
         if self.adjoint_axis_bvp:
             fun_jac = lambda x, y : self.jac_adjoint(x,y,axis_poly)
@@ -1669,7 +1675,7 @@ class TangentMap():
         V[1,...] = R*BZ/BP
         return V
 
-    def rhs_fun_adjoint(self,phi,eta=None,axis_poly=None,tangent_poly=None,adjoint_poly=None):
+    def rhs_fun_adjoint(self,phi,eta=None,axis_poly=None,tangent_poly=None,adjoint_poly=None,adjoint_fd=False):
         """
         Compute rhs of adjoint problem for res_axis metric, i.e.
             mu'(\phi) = V(phi)
@@ -1717,13 +1723,13 @@ class TangentMap():
             V = np.zeros((2,len(phi)))
         else:
             V = np.zeros((2))
-        if (self.constrained and self.adjoint_axis_fd==False):
+        if (self.constrained and adjoint_fd==False):
             V[0,...] = -m[0,...]*eta[0,...] -m[2,...]*eta[1,...] - fac*lambda_dot_dmdR_times_M
             V[1,...] = -m[3,...]*eta[1,...] -m[1,...]*eta[0,...] - fac*lambda_dot_dmdZ_times_M
-        elif (self.constrained and self.adjoint_axis_fd):
+        elif (self.constrained and adjoint_fd):
             V[0,...] =  - fac*lambda_dot_dmdR_times_M
             V[1,...] =  - fac*lambda_dot_dmdZ_times_M    
-        elif (self.constrained==False and self.adjoint_axis_fd):
+        elif (self.constrained==False and adjoint_fd):
             axis = axis_poly(phi)
             V[0,...] = axis[0,...] - R_ma
             V[1,...] = axis[1,...] - Z_ma            
