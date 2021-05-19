@@ -1051,6 +1051,7 @@ class TangentMap():
                                             x=phi,y=y0,fun_jac=fun_jac,
                                             bc_jac=self.bc_jac,verbose=self.verbose,
                                             tol=self.bvp_tol,max_nodes=self.max_nodes)
+            '''
             # Now check solution
             out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
                         vectorized=False,rtol=self.rtol,atol=self.atol,
@@ -1058,7 +1059,8 @@ class TangentMap():
                                            method=self.method)
             yend = out_check.sol(2*np.pi)
             print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
-            
+            '''
+
             if (out.status==0):
                 # Evaluate polynomial on grid
                 return out.sol(phi), out.sol
@@ -1468,8 +1470,8 @@ class TangentMap():
 
         P = 2*np.pi/nfp # Period
 
-        phi = np.linspace(0, P, num=nphi, endpoint=True)
-        #diff_phi = np.repeat(P,nphi)/nphi
+        phi = np.linspace(0, P, num=nphi, endpoint=False)
+        diff_phi = np.repeat(P,nphi)/nphi
         
         R,Z = self.axis_poly(phi)
         
@@ -1478,13 +1480,10 @@ class TangentMap():
        
         # These are just standard Fourier transform formulas
 
-        Rcoeffs[0] = 1/P * np.trapz(R,phi)
-        #Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
+        Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
 
         for k in range(1,Nt+1):
-            Rcoeffs[k] = 2/P * np.trapz(R*np.cos(2*np.pi/P*k*phi),phi)
-            Zcoeffs[k-1] = 2/P * np.trapz(Z*np.sin(2*np.pi/P*k*phi),phi)
-            #Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
-            #Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
+            Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
+            Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
 
         return (Rcoeffs, Zcoeffs)

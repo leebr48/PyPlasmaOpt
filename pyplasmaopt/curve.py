@@ -423,6 +423,115 @@ with
                 d4gamma_by_dphidphidphidcoeff[:, 0, 0, 0, i*(2*self.order+1) + 2*j  , i] = +(2*pi*j)**3*np.sin(2*pi*j*points)
         return d4gamma_by_dphidphidphidcoeff
 
+class ControlCoil(Curve):
+    """
+    FIXME give implementation details. 
+    """
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.coefficients = np.zeros((6)) #'DOFs' may be a better name: Center x,y,z; Rotation about R and Z axes; minor radius
+        self.order = 6
+
+    def tomatlabformat(self):
+        # FIXME? or delete?
+        return None
+
+    def num_coeff(self):
+        return self.order
+
+    def get_dofs(self):
+        return np.concatenate(self.coefficients)
+
+    def set_dofs(self, dofs):
+        self.coefficients[:] = dofs
+        super().update()
+    #FIXME NOT DONE PAST HERE
+    @cached_property
+    def gamma(self):
+        gamma = np.zeros((len(self.points), 3))
+        coeffs = self.coefficients
+        points = self.points
+        for i in range(3):
+            gamma[:, i] += coeffs[i][0]
+            for j in range(1, self.order+1):
+                gamma[:, i] += coeffs[i][2*j-1] * np.sin(2*pi*j*points)
+                gamma[:, i] += coeffs[i][2*j]   * np.cos(2*pi*j*points)
+        return gamma
+
+    @cached_property
+    def dgamma_by_dcoeff(self):
+        dgamma_by_dcoeff = np.zeros((len(self.points), self.num_coeff(), 3))
+        points = self.points
+        for i in range(3):
+            dgamma_by_dcoeff[:, i*(2*self.order+1), i] = 1
+            for j in range(1, self.order+1):
+                dgamma_by_dcoeff[:, i*(2*self.order+1) + 2*j-1, i] = np.sin(2*pi*j*points)
+                dgamma_by_dcoeff[:, i*(2*self.order+1) + 2*j  , i] = np.cos(2*pi*j*points)
+        return dgamma_by_dcoeff
+
+    @cached_property
+    def dgamma_by_dphi(self):
+        dgamma_by_dphi = np.zeros((len(self.points), 1, 3))
+        coeffs = self.coefficients
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                dgamma_by_dphi[:, 0, i] += +coeffs[i][2*j-1] * 2*pi*j*np.cos(2*pi*j*points)
+                dgamma_by_dphi[:, 0, i] += -coeffs[i][2*j] * 2*pi*j*np.sin(2*pi*j*points)
+        return dgamma_by_dphi
+
+    @cached_property
+    def d2gamma_by_dphidcoeff(self):
+        d2gamma_by_dphidcoeff = np.zeros((len(self.points), 1, self.num_coeff(), 3))
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                d2gamma_by_dphidcoeff[:, 0, i*(2*self.order+1) + 2*j-1, i] = +2*pi*j*np.cos(2*pi*j*points)
+                d2gamma_by_dphidcoeff[:, 0, i*(2*self.order+1) + 2*j  , i] = -2*pi*j*np.sin(2*pi*j*points)
+        return d2gamma_by_dphidcoeff
+
+    @cached_property
+    def d2gamma_by_dphidphi(self):
+        d2gamma_by_dphidphi = np.zeros((len(self.points), 1, 1, 3))
+        coeffs = self.coefficients
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                d2gamma_by_dphidphi[:, 0, 0, i] += -coeffs[i][2*j-1] * (2*pi*j)**2*np.sin(2*pi*j*points)
+                d2gamma_by_dphidphi[:, 0, 0, i] += -coeffs[i][2*j]   * (2*pi*j)**2*np.cos(2*pi*j*points)
+        return d2gamma_by_dphidphi
+
+    @cached_property
+    def d3gamma_by_dphidphidcoeff(self):
+        d3gamma_by_dphidphidcoeff = np.zeros((len(self.points), 1, 1, self.num_coeff(), 3))
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                d3gamma_by_dphidphidcoeff[:, 0, 0, i*(2*self.order+1) + 2*j-1, i] = -(2*pi*j)**2*np.sin(2*pi*j*points)
+                d3gamma_by_dphidphidcoeff[:, 0, 0, i*(2*self.order+1) + 2*j  , i] = -(2*pi*j)**2*np.cos(2*pi*j*points)
+        return d3gamma_by_dphidphidcoeff
+
+    @cached_property
+    def d3gamma_by_dphidphidphi(self):
+        d3gamma_by_dphidphidphi = np.zeros((len(self.points), 1, 1, 1, 3))
+        coeffs = self.coefficients
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                d3gamma_by_dphidphidphi[:, 0, 0, 0, i] += -coeffs[i][2*j-1] * (2*pi*j)**3*np.cos(2*pi*j*points)
+                d3gamma_by_dphidphidphi[:, 0, 0, 0, i] += +coeffs[i][2*j]   * (2*pi*j)**3*np.sin(2*pi*j*points)
+        return d3gamma_by_dphidphidphi
+
+    @cached_property
+    def d4gamma_by_dphidphidphidcoeff(self):
+        d4gamma_by_dphidphidphidcoeff = np.zeros((len(self.points), 1, 1, 1, self.num_coeff(), 3))
+        points = self.points
+        for i in range(3):
+            for j in range(1, self.order+1):
+                d4gamma_by_dphidphidphidcoeff[:, 0, 0, 0, i*(2*self.order+1) + 2*j-1, i] = -(2*pi*j)**3*np.cos(2*pi*j*points)
+                d4gamma_by_dphidphidphidcoeff[:, 0, 0, 0, i*(2*self.order+1) + 2*j  , i] = +(2*pi*j)**3*np.sin(2*pi*j*points)
+        return d4gamma_by_dphidphidphidcoeff
 
 class StellaratorSymmetricCylindricalFourierCurve(Curve):
 
