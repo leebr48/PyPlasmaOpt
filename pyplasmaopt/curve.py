@@ -424,7 +424,7 @@ with
         return d4gamma_by_dphidphidphidcoeff
 
 
-class StelleratorSymmetricCylindricalFourierCurve(Curve):
+class StellaratorSymmetricCylindricalFourierCurve(Curve):
 
     def __init__(self, order, nfp, *args):
         super().__init__(*args)

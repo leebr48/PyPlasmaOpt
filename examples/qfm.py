@@ -6,17 +6,18 @@ about the coils. This all is then fed into VMEC.
 
 # Options
 ## All
-image_filetype = 'png' #Choose something that MatPlotLib can handle. 
-font_size = 20
+image_filetype = 'pdf' #Choose something that MatPlotLib can handle. 
+font_size = 18
 ## Poincare plot
 qfm_max_tries = 5
 #package = 'nlopt' #Choose 'nlopt' or 'scipy'
 poincare_max_tries = 5
-nperiods = 200 #Poincare plot setting
+nperiods = 700 #200 
 batch_size = 4
-#max_thickness = 0.25
 delta = 0.01
-spp = 120 #Poincare plot setting
+spp = 120
+marker_size = 0.01 #0.04
+marker_symbol = '.'
 poincare_plot_name = 'poincare_w_qfm'
 ## CoilPy
 coils_file_suffix = 'pyplasmaopt'
@@ -34,10 +35,10 @@ vmec_DELT = 9.00E-01 #This is typically 0.7-0.9 and may have to be tweaked to ma
 vmec_NITER = 5000
 vmec_NSTEP = 200
 vmec_TCON0 = 2.00E+00
-vmec_NS_ARRAY = '9 29 49 99'
-vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12'
+vmec_NS_ARRAY = '9 29 49 99' #NOTE: could change first number to 3 VMEC is being difficult (but not preferred)
+vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12' #NOTE: could change first number to 1E-5 if VMEC is being difficult (but not preferred)
 vmec_LASYM = 'F'
-vmec_MPOL = 11
+vmec_MPOL = 11 #NOTE: can make this lower if VMEC is being difficult (but not preferred)
 vmec_NTOR = 6
 vmec_LFREEB = 'T'
 vmec_NVACSKIP = 6
@@ -188,7 +189,7 @@ for sourceitem in args.sourcedir:
     bs = BiotSavart(stellarator.coils, stellarator.currents)
         
     magnetic_axis_radius = np.sum(ma.coefficients[0]) #First group is for R, second is for Z. First series is cosine and we calculate R at phi=0, so we can sum the coefficients to get R.  
-    
+
     # Initialize parameters, or just load old xopt
     if len(old_xopt)==0:
         print('Using generic initial guess for QFM surface.')
@@ -277,13 +278,18 @@ for sourceitem in args.sourcedir:
             data3[:, 2*i+0] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 0]
             data3[:, 2*i+1] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 2]
 
-        plt.figure()
+        #plt.figure()
+        fig,ax = plt.subplots()
         for i in range(nparticles):
-            plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.1)
-        plt.plot(R[0,:],Z[0,:])
-        plt.xlabel(r'$R$ (m)')
-        plt.ylabel(r'$Z$ (m)')
-        plt.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
+            #plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.01, marker='o') #FIXME s was 0.1
+            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) #FIXME s was 0.1
+        Ruse = np.append(R,np.reshape(R[:,0],(R.shape[0],1)),axis=1)
+        Zuse = np.append(Z,np.reshape(Z[:,0],(Z.shape[0],1)),axis=1)
+        ax.plot(Ruse[0,:],Zuse[0,:])
+        ax.set_aspect('equal','box') 
+        ax.set_xlabel(r'$R$ (m)')
+        ax.set_ylabel(r'$Z$ (m)')
+        fig.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight',dpi=400)
         print('Poincare plot created.')
 
     # Load in coil and current information 
@@ -350,7 +356,7 @@ for sourceitem in args.sourcedir:
         print('MAKEGRID ran.')
 
     # Get estimate for VMEC's PHIEDGE parameter 
-    phi_edge = qfm.toroidal_flux(np.concatenate((Rbc[1:],Zbs))) #Looks odd, but this is how the function takes inputs.
+    phi_edge = qfm.toroidal_flux(np.concatenate((Rbc[1:],Zbs))) #Looks odd, but this is how the function takes inputs. 
 
     # Write the VMEC input.* script
     def list2str(invec):
@@ -569,9 +575,10 @@ for sourceitem in args.sourcedir:
             # Normalize by total sum
             QA_metric[index] = np.sqrt(summed_nonQA/summed_total)
             
-        plt.plot(s,QA_metric)
+        plt.plot(s,QA_metric,marker='o')
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
         #plt.xlabel('s')
         plt.ylabel('QA Metric')
+        plt.ylim(bottom=0)
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')

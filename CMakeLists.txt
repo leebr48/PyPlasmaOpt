@@ -8,7 +8,7 @@ find_package(NumPy REQUIRED)
 find_package(OpenMP)
 
 
-set(CMAKE_CXX_FLAGS "-O3 ")
+set(CMAKE_CXX_FLAGS "-O3")
 
 add_subdirectory(pybind11)
 set(XTENSOR_USE_OPENMP 0)
