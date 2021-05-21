@@ -46,3 +46,5 @@ To check the installation
     pytest tests/
 
 You can also run scripts in the "examples" folder to be certain that all the package dependencies are installed. 
+
+Note: if you are installing and running PyPlasmaOpt on different processors, you may get an error. If this happens, try deleting "-march=native" from CMakeLists.txt and setup.py and rebuilding PyPlasmaOpt.

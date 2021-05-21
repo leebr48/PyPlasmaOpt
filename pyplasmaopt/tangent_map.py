@@ -12,7 +12,7 @@ class TangentMap():
                 min_step=1e-10,max_step=1,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
         """
         stellarator: instance of CoilCollection representing modular coils
-        magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
+        magnetic_axis: instance of StellaratorSymmetricCylindricalFourierCurve
             representing magnetic axis
         rtol (double): relative tolerance for IVP
         atol (double): absolute tolerance for IVP
@@ -112,7 +112,7 @@ class TangentMap():
         if (np.abs(trM/2)>1):
             raise RuntimeError('Incorrect value of trM.')
         else:
-            return -1*np.arccos(trM/2)/(2*np.pi) #FIXME added the -1 to match PPO sign convention
+            return -1*np.arccos(trM/2)/(2*np.pi) #FIXME this should make the sign convention consistent with the rest of PPO
 
     def compute_tangent(self,phi,axis_poly=None,adjoint=False):
         """
@@ -1480,3 +1480,44 @@ class TangentMap():
             d_V_by_dcoilcoeffs.append(d_V)
 
         return d_V_by_dcoilcoeffs
+
+    def ft_RZ(self,nfp=3,Nt=6,nphi=10000):
+        '''
+        Calculates the Fourier coefficients for the R and Z
+        coordinates of the magnetic axis.
+        
+        Inputs:
+        nfp (int): the number of field periods in the device 
+            (NOTE: we assume stellarator symmetry holds)
+        Nt (int): number of harmonics to compute - Z will 
+            have (Nt) harmonics, and R will have (Nt+1)
+        nphi (1D array): number of toroidal angle values on 
+            which R and Z are evaluated
+
+        Outputs:
+        Rcoeffs (1D array): Fourier coefficients for R
+        Zcoeffs (1D array): Fourier coefficients for Z
+        '''
+
+        P = 2*np.pi/nfp # Period
+
+        phi = np.linspace(0, P, num=nphi, endpoint=True)
+        #diff_phi = np.repeat(P,nphi)/nphi
+        
+        R,Z = self.axis_poly(phi)
+        
+        Rcoeffs = np.zeros(Nt+1)
+        Zcoeffs = np.zeros(Nt)
+       
+        # These are just standard Fourier transform formulas
+
+        Rcoeffs[0] = 1/P * np.trapz(R,phi)
+        #Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
+
+        for k in range(1,Nt+1):
+            Rcoeffs[k] = 2/P * np.trapz(R*np.cos(2*np.pi/P*k*phi),phi)
+            Zcoeffs[k-1] = 2/P * np.trapz(Z*np.sin(2*np.pi/P*k*phi),phi)
+            #Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
+            #Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
+
+        return (Rcoeffs, Zcoeffs)
