@@ -6,10 +6,10 @@ from pyplasmaopt.biotsavart import BiotSavart
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
                 constrained=True,bvp_tol=1e-8,tol=1e-8,max_nodes=50000,
-                verbose=0,nphi_guess=1000,nphi_integral=1000,
+                verbose=2,nphi_guess=1000,nphi_integral=1000,
                 maxiter=20,axis_bvp=False,adjoint_axis_fd=True,
-                adjoint_axis_bvp=True,method='BDF',
-                min_step=1e-12,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
+                adjoint_axis_bvp=True,method='LSODA',
+                min_step=1e-10,max_step=1,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StelleratorSymmetricCylindricalFourierCurve
@@ -49,6 +49,7 @@ class TangentMap():
         self.adjoint_axis_fd = adjoint_axis_fd 
         self.method = method 
         self.min_step = min_step
+        self.max_step = max_step
         self.check_adjoint = check_adjoint
         # Polynomial solutions for current solutions
         self.axis_poly = None
@@ -136,7 +137,8 @@ class TangentMap():
             out = scipy.integrate.solve_ivp(self.rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
                                             t_eval=phi,args=args,dense_output=True,
-                                           method=self.method,min_step=self.min_step)
+                                           method=self.method,min_step=self.min_step,
+                                           max_step=self.max_step)
         except ValueError: #FIXME you added this try/except loop to deal with the scipy glitch
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
         
@@ -365,7 +367,8 @@ class TangentMap():
         out = scipy.integrate.solve_ivp(self.adjoint_rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
                                        t_eval=phi,args=args,dense_output=True,
-                                       method=self.method,min_step=self.min_step)
+                                       method=self.method,min_step=self.min_step,
+                                       max_step=self.max_step)
         if (out.status==0):
             return out.y, out.sol
         else:
@@ -1096,7 +1099,8 @@ class TangentMap():
                 out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
-                                               method=self.method,min_step=self.min_step)
+                                        method=self.method,
+                                        min_step=self.min_step,max_step=self.max_step)
                 yend = out_check.sol(2*np.pi)
                 if self.verbose:
                     print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
@@ -1114,7 +1118,8 @@ class TangentMap():
                 out = scipy.integrate.solve_ivp(fun,t_span,y0,
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
-                                        method=self.method,min_step=self.min_step)
+                                        method=self.method,min_step=self.min_step,
+                                        max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if (self.verbose):
                     print('Norm: ',np.linalg.norm(yend-y0))
@@ -1181,7 +1186,8 @@ class TangentMap():
                 out = scipy.integrate.solve_ivp(self.rhs_fun_axis,t_span,y0,
                             vectorized=False,rtol=self.rtol,atol=self.atol,
                                         t_eval=phi,dense_output=True,
-                                        method=self.method,min_step=self.min_step)
+                                        method=self.method,
+                                        min_step=self.min_step,max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if self.verbose:
                     print('Norm: ',np.linalg.norm(yend-y0))
