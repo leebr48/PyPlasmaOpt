@@ -57,7 +57,7 @@ def get_24_coil_data(Nt_coils=3, Nt_ma=3, nfp=2, ppp=10, at_optimum=False):
 
     return (coils, currents, ma, eta_bar)
 
-def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1, kick=False, magnitude=0.2, z0factr=4): #kwargs are based on NCSX specs 
+def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radius=1.4, minor_radius=0.33, copies=1, kick=False, magnitude=0.05, z0factr=4): #kwargs are based on NCSX specs 
     
     coils = [CartesianFourierCurve(Nt_coils, np.linspace(0, 1, Nt_coils*ppp, endpoint=False)) for i in range(num_coils)]
     

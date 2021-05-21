@@ -52,7 +52,7 @@ def get_objective():
     parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
     parser.add_argument("--image", type=int, default=250) # How often images of stellarator should be written
     parser.add_argument("--kick", action='store_true', default=False) # Add a perturbation to the currents when loading flat coils
-    parser.add_argument("--mag", type=float, default=0.2) # Perturbation (kick) magnitude
+    parser.add_argument("--mag", type=float, default=0.05) # Perturbation (kick) magnitude
     parser.add_argument("--z0factr", type=float, default=4) # Additional perturbation in the z direction
     args = parser.parse_args()
 

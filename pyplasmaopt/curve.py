@@ -430,8 +430,8 @@ class ControlCoil(Curve):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.coefficients = np.zeros((6)) #'DOFs' may be a better name: Center x,y,z; Rotation about R and Z axes; minor radius
-        self.order = 6
+        self.coefficients = np.zeros((6)) #'DOFs' may be a better term: Center R0,phi,zc; a (azimuthal angle), e (elevation angle); r (minor radius)
+        self.order = len(self.coefficients)
 
     def tomatlabformat(self):
         # FIXME? or delete?
@@ -441,46 +441,99 @@ class ControlCoil(Curve):
         return self.order
 
     def get_dofs(self):
-        return np.concatenate(self.coefficients)
+        return self.coefficients
 
     def set_dofs(self, dofs):
         self.coefficients[:] = dofs
         super().update()
-    #FIXME NOT DONE PAST HERE
+
     @cached_property
     def gamma(self):
         gamma = np.zeros((len(self.points), 3))
-        coeffs = self.coefficients
-        points = self.points
-        for i in range(3):
-            gamma[:, i] += coeffs[i][0]
-            for j in range(1, self.order+1):
-                gamma[:, i] += coeffs[i][2*j-1] * np.sin(2*pi*j*points)
-                gamma[:, i] += coeffs[i][2*j]   * np.cos(2*pi*j*points)
+        R0 = self.coefficients[0]
+        p = self.coefficients[1]
+        zc = self.coefficients[2]
+        a = self.coefficients[3]
+        e = self.coefficients[4]
+        r = self.coefficients[5]
+        t = self.points
+        sin = np.sin
+        cos = np.cos
+        pi = np.pi
+
+        gamma[:,0] = R0*cos(p) + r*sin(e)*(sin(a)*cos(2*pi*t)-cos(a)*cos(e)*sin(2*pi*t))
+        gamma[:,1] = R0*sin(p) - r*sin(e)*(cos(a)*cos(2*pi*t)+sin(a)*cos(e)*sin(2*pi*t))
+        gamma[:,2] = zc + r*(sin(e))**(2)*sin(2*pi*t)
+        
         return gamma
 
     @cached_property
     def dgamma_by_dcoeff(self):
         dgamma_by_dcoeff = np.zeros((len(self.points), self.num_coeff(), 3))
-        points = self.points
-        for i in range(3):
-            dgamma_by_dcoeff[:, i*(2*self.order+1), i] = 1
-            for j in range(1, self.order+1):
-                dgamma_by_dcoeff[:, i*(2*self.order+1) + 2*j-1, i] = np.sin(2*pi*j*points)
-                dgamma_by_dcoeff[:, i*(2*self.order+1) + 2*j  , i] = np.cos(2*pi*j*points)
+        R0 = self.coefficients[0]
+        p = self.coefficients[1]
+        #zc = self.coefficients[2]
+        a = self.coefficients[3]
+        e = self.coefficients[4]
+        r = self.coefficients[5]
+        t = self.points
+        sin = np.sin
+        cos = np.cos
+        pi = np.pi
+       
+        # R0 derivatives
+        dgamma_by_dcoeff[:,0,0] = np.repeat(cos(p), len(t))
+        dgamma_by_dcoeff[:,0,1] = np.repeat(sin(p), len(t))
+        dgamma_by_dcoeff[:,0,2] = np.repeat(0, len(t))
+
+        # phi derivatives
+        dgamma_by_dcoeff[:,1,0] = np.repeat(-R0*sin(p),len(t))
+        dgamma_by_dcoeff[:,1,1] = np.repeat(R0*cos(p),len(t))
+        dgamma_by_dcoeff[:,1,2] = np.repeat(0,len(t))
+
+        # zc derivatives
+        dgamma_by_dcoeff[:,2,0] = np.repeat(0,len(t))
+        dgamma_by_dcoeff[:,2,1] = np.repeat(0,len(t))
+        dgamma_by_dcoeff[:,2,2] = np.repeat(1,len(t))
+
+        # a derivatives
+        dgamma_by_dcoeff[:,3,0] = r*sin(e)*(cos(a)*cos(2*pi*t)+sin(a)*cos(e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,3,1] = r*sin(e)*(sin(a)*cos(2*pi*t)-cos(a)*cos(e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,3,2] = 0
+
+        # e derivatives
+        dgamma_by_dcoeff[:,4,0] = r*(sin(a)*cos(e)*cos(2*pi*t)-cos(a)*cos(2*e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,4,1] = -r*(cos(a)*cos(e)*cos(2*pi*t)+sin(a)*cos(2*e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,4,2] = r*sin(2*e)*sin(2*pi*t)
+
+        # r derivatives
+        dgamma_by_dcoeff[:,5,0] = sin(e)*(sin(a)*cos(2*pi*t)-cos(a)*cos(e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,5,1] = -sin(e)*(cos(a)*cos(2*pi*t)+sin(a)*cos(e)*sin(2*pi*t))
+        dgamma_by_dcoeff[:,5,2] = (sin(e))**(2)*sin(2*pi*t)
+
         return dgamma_by_dcoeff
 
     @cached_property
     def dgamma_by_dphi(self):
         dgamma_by_dphi = np.zeros((len(self.points), 1, 3))
-        coeffs = self.coefficients
-        points = self.points
-        for i in range(3):
-            for j in range(1, self.order+1):
-                dgamma_by_dphi[:, 0, i] += +coeffs[i][2*j-1] * 2*pi*j*np.cos(2*pi*j*points)
-                dgamma_by_dphi[:, 0, i] += -coeffs[i][2*j] * 2*pi*j*np.sin(2*pi*j*points)
+        #R0 = self.coefficients[0]
+        #p = self.coefficients[1]
+        #zc = self.coefficients[2]
+        a = self.coefficients[3]
+        e = self.coefficients[4]
+        r = self.coefficients[5]
+        t = self.points
+        sin = np.sin
+        cos = np.cos
+        pi = np.pi
+
+        dgamma_by_dphi[:,0,0] = -2*pi*r*sin(e)*(cos(a)*cos(e)*cos(2*pi*t)+sin(a)*sin(2*pi*t))
+        dgamma_by_dphi[:,0,1] = 2*pi*r*sin(e)*(cos(a)*sin(2*pi*t)-sin(a)*cos(e)*cos(2*pi*t))
+        dgamma_by_dphi[:,0,2] = 2*pi*r*(sin(e))**(2)*cos(2*pi*t)
+        
         return dgamma_by_dphi
 
+    #FIXME NOT DONE PAST HERE
     @cached_property
     def d2gamma_by_dphidcoeff(self):
         d2gamma_by_dphidcoeff = np.zeros((len(self.points), 1, self.num_coeff(), 3))
