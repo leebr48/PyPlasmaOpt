@@ -309,7 +309,8 @@ with
         super().__init__(*args)
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         self.order = order
-
+    
+    '''
     def tomatlabformat(self):
         dat = np.zeros((self.order+1, 6))
         for d in range(3):
@@ -318,6 +319,7 @@ with
                 dat[i+1, 2*d] = self.coefficients[d][2*i+1]
                 dat[i+1, 2*d+1] = self.coefficients[d][2*(i+1)]
         return dat
+    '''
 
     def num_coeff(self):
         return 3*(2*self.order+1)
@@ -452,10 +454,11 @@ class ControlCoil(Curve):
         super().__init__(*args)
         self.coefficients = np.zeros((6)) #'DOFs' may be a better term: Center R0,phi,zc; a (azimuthal angle), e (elevation angle); r (minor radius)
         self.order = len(self.coefficients)
-
+    '''
     def tomatlabformat(self):
-        dat = np.array([0]) #FIXME?
+        dat = np.array([0])
         return dat
+    '''
 
     def num_coeff(self):
         return self.order

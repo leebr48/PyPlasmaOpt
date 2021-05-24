@@ -2,6 +2,7 @@ import numpy as np
 import scipy.integrate
 import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
+from pyplasmaopt.logging import info
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
@@ -1103,7 +1104,7 @@ class TangentMap():
                                         min_step=self.min_step,max_step=self.max_step)
                 yend = out_check.sol(2*np.pi)
                 if self.verbose:
-                    print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
+                    info(f'Residual in adjoint axis: {np.linalg.norm(out.sol(0)-yend)}')
             
             if (out.status==0):
                 # Evaluate polynomial on grid
@@ -1122,12 +1123,12 @@ class TangentMap():
                                         max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if (self.verbose):
-                    print('Norm: ',np.linalg.norm(yend-y0))
+                    info(f'Norm: {np.linalg.norm(yend-y0)}')
                 if (np.abs(yend[0]-y0[0]) < self.tol and np.abs(yend[1]-y0[1]) < self.tol):
                     if (self.verbose):
-                        print('yend: ',yend)
-                        print('y0: ',y0)
-                        print('Newton iteration converged')
+                        info(f'yend: {yend}')
+                        info(f'y0: {y0}')
+                        info('Newton iteration converged')
                     return out.y, out.sol
                 tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),axis_poly,adjoint=True)
                 U = np.zeros((2,2))
@@ -1190,12 +1191,12 @@ class TangentMap():
                                         min_step=self.min_step,max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if self.verbose:
-                    print('Norm: ',np.linalg.norm(yend-y0))
+                    info(f'Norm: {np.linalg.norm(yend-y0)}')
                 if (np.abs(yend[0]-y0[0]) < self.tol and np.abs(yend[1]-y0[1]) < self.tol):
                     if self.verbose:
-                        print('yend: ',yend)
-                        print('y0: ',y0)
-                        print('Newton iteration converged')
+                        info(f'yend: {yend}')
+                        info(f'y0: {y0}')
+                        info('Newton iteration converged')
                     return out.y, out.sol
                 tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),out.sol)
                 U = np.zeros((2,2))

@@ -19,8 +19,8 @@ def Checkpoint(obj, iteration=0):
             np.savetxt(str(pl.Path(obj.outdir).joinpath('coil-%d.txt'%coilind)),obj.stellarator_group[0].coils[coilind].gamma)
             np.savetxt(str(pl.Path(obj.outdir).joinpath('current-%d_%d.txt'%(coilind,stellind))),[obj.stellarator_group[stellind].currents[coilind]])
 
-    matlabcoils = [c.tomatlabformat() for c in obj.stellarator_group[0]._base_coils]
-    np.savetxt(str(pl.Path(obj.outdir).joinpath('coilsmatlab.txt')), np.hstack(matlabcoils))
+    #matlabcoils = [c.tomatlabformat() for c in obj.stellarator_group[0]._base_coils]
+    #np.savetxt(str(pl.Path(obj.outdir).joinpath('coilsmatlab.txt')), np.hstack(matlabcoils))
 
     save = obj.stellarator_group[0]._base_coils[0].coefficients
     for i in range(1,len(obj.stellarator_group[0]._base_coils)):
