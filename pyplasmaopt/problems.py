@@ -114,7 +114,8 @@ class NearAxisQuasiSymmetryObjective():
             varlist = [eta_bar_cat]
             varlist.append(stellarator_cat)
             varlist.append(ma_dofs_cat)
-            varlist.append(self.stellarator_group[0].get_dofs())
+            if not self.freezeCoils:
+                varlist.append(self.stellarator_group[0].get_dofs())
             self.x0 = np.concatenate(tuple(varlist))
             
             # This code block was implemented before keepAxis. 
