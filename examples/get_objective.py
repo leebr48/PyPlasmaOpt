@@ -128,10 +128,13 @@ def get_objective():
         (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
         eta_bar = np.repeat(eta_bar,num_stell)
         if args.QFM_wt > 0:
-            xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
-            xopt_rld = []
-            for i in range(num_stell):
-                xopt_rld.append(xopt_old)
+            try:
+                xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
+                xopt_rld = []
+                for i in range(num_stell):
+                    xopt_rld.append(xopt_old)
+            except OSError:
+                xopt_rld = None # Allows us to add a QFM surface when there was not one originally
     elif args.flat:
         (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr)
         eta_bar = np.repeat(1,num_stell)
