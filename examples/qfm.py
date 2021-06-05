@@ -105,13 +105,14 @@ parser.add_argument("--xtol_abs", type=float, default=None)
 parser.add_argument("--xtol_rel", type=float, default=None)
 parser.add_argument("--package", type=str, default=None)
 parser.add_argument("--method", type=str, default=None)
-parser.add_argument("--noPoincare", action='store_true', required=False, default=False) #These options shut down parts of the code, which run in the given order. 
+parser.add_argument("--noPoincare", action='store_true', required=False, default=False) # These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
 parser.add_argument("--noCompare", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozRun", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
+parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
 args = parser.parse_args() 
 
 def var_assign(load,arg):
@@ -166,6 +167,7 @@ for sourceitem in args.sourcedir:
     xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
     xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
     stellID = args.stellID
+    oldFormat = args.oldFormat
     package = strVar_assign('package',args.package)
     method = strVar_assign('method',args.method)
     try:
@@ -181,8 +183,7 @@ for sourceitem in args.sourcedir:
         f.write('StellID: {:}'.format(str(stellID)))
 
     # Get the QFM surface
-    #(unique_coils, ma, unique_currents) = get_ncsx_data(Nt_ma=Nt_ma, Nt_coils=Nt_coils, ppp=ppp)
-    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
+    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID,oldFormat=oldFormat)
     ma = mas[0] #You should only be loading one stellarator at a time! 
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
 
@@ -205,8 +206,8 @@ for sourceitem in args.sourcedir:
             
             #approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
             approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/magnetic_axis_radius) #Minor radius of a torus
-            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) #FIXME?
-            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
+            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) 
+            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) 
 
             paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
@@ -247,7 +248,7 @@ for sourceitem in args.sourcedir:
         #magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
         #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp)
         
-        max_thickness = min_rad #FIXME?
+        max_thickness = min_rad 
         
         runs = 1
         while runs < poincare_max_tries: 
@@ -281,8 +282,7 @@ for sourceitem in args.sourcedir:
         #plt.figure()
         fig,ax = plt.subplots()
         for i in range(nparticles):
-            #plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.01, marker='o') #FIXME s was 0.1
-            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) #FIXME s was 0.1
+            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) 
         Ruse = np.append(R,np.reshape(R[:,0],(R.shape[0],1)),axis=1)
         Zuse = np.append(Z,np.reshape(Z[:,0],(Z.shape[0],1)),axis=1)
         ax.plot(Ruse[0,:],Zuse[0,:])

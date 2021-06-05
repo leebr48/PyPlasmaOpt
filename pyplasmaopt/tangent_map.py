@@ -113,7 +113,7 @@ class TangentMap():
         if (np.abs(trM/2)>1):
             raise RuntimeError('Incorrect value of trM.')
         else:
-            return -1*np.arccos(trM/2)/(2*np.pi) #FIXME this should make the sign convention consistent with the rest of PPO
+            return -1*np.arccos(trM/2)/(2*np.pi) # The -1 is for a PPO sign convention
 
     def compute_tangent(self,phi,axis_poly=None,adjoint=False):
         """
@@ -140,7 +140,7 @@ class TangentMap():
                                             t_eval=phi,args=args,dense_output=True,
                                            method=self.method,min_step=self.min_step,
                                            max_step=self.max_step)
-        except ValueError: #FIXME you added this try/except loop to deal with the scipy glitch
+        except ValueError:
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
         
         if (out.status==0):

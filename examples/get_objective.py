@@ -12,6 +12,7 @@ def get_objective():
     parser.add_argument("--out", type=str, default="")
     parser.add_argument("--nfp", type=int, default=3)
     parser.add_argument("--num_coils", type=int, default=3)
+    parser.add_argument("--contNum", type=int, default=0) # Number of control coils to add to the problem. 
     parser.add_argument("--Nt_ma", type=int, default=6)
     parser.add_argument("--Nt_coils", type=int, default=6)
     parser.add_argument("--ppp", type=int, default=20)
@@ -27,10 +28,10 @@ def get_objective():
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
-    parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
     parser.add_argument("--rld", type=str, required=False) #NOTE: you can only reload one stellarator at a time! 
-    parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class. #FIXME do you need this option any more?
-    parser.add_argument("--stellID", type=int, default=0)
+    parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class.
+    parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
+    parser.add_argument("--stellID", type=int, default=-1)
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)
     parser.add_argument("--maj_rad", type=float, default=1.4)
@@ -40,13 +41,12 @@ def get_objective():
     parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
     parser.add_argument("--ntheta", type=int, default=20) # number of poloidal grid points for integration
     parser.add_argument("--nphi", type=int, default=20) # number of toroidal grid points for integration
-    parser.add_argument("--at_opt", dest="at_optimum", default=False,action="store_true")
     parser.add_argument("--tik", type=float, default=0.)
     parser.add_argument("--sob", type=float, default=0.)
-    parser.add_argument("--ftol_abs", type=float, default=1e-10) #FIXME? was 1e-15
-    parser.add_argument("--ftol_rel", type=float, default=1e-10) #FIXME? was 1e-15
-    parser.add_argument("--xtol_abs", type=float, default=1e-10) #FIXME? was 1e-15
-    parser.add_argument("--xtol_rel", type=float, default=1e-10) #FIXME? was 1e-15
+    parser.add_argument("--ftol_abs", type=float, default=1e-10)
+    parser.add_argument("--ftol_rel", type=float, default=1e-10)
+    parser.add_argument("--xtol_abs", type=float, default=1e-10)
+    parser.add_argument("--xtol_rel", type=float, default=1e-10)
     parser.add_argument("--package", type=str, default='nlopt') # For QFM surface finder
     parser.add_argument("--method", type=str, default='LBFGS') # For QFM surface finder 
     parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
@@ -54,6 +54,8 @@ def get_objective():
     parser.add_argument("--kick", action='store_true', default=False) # Add a perturbation to the currents when loading flat coils
     parser.add_argument("--mag", type=float, default=0.05) # Perturbation (kick) magnitude
     parser.add_argument("--z0factr", type=float, default=4) # Additional perturbation in the z direction
+    parser.add_argument("--contRad", type=float, default=1.3)
+    parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
     args = parser.parse_args()
 
     keys = list(args.__dict__.keys())
@@ -65,8 +67,6 @@ def get_objective():
         outdir = "output-%s" % args.__dict__[keys[0]]
     else:
         outdir = "output"
-    #if args.__dict__[keys[1]]:
-    #    outdir += "_atopt"
     if not args.rld:
         for i in range(1, len(keys)-cutoff_number):
             k = keys[i]
@@ -76,7 +76,6 @@ def get_objective():
             k = keys[i]
             outdir += "_%s-%s" % (k, args.__dict__[k])
         outdir += "_rld-True"
-        #outdir += "_stellID-%d"%args.stellID
     outdir = outdir.replace(".", "p")
     outdir = outdir.replace(' ','')
     outdir = outdir.replace(',','_')
@@ -89,6 +88,11 @@ def get_objective():
     set_file_logger(outdir + "log.txt")
     info("Configuration: \n%s", args.__dict__)
 
+    if args.stellID < 0:
+        stellID = None
+    else:
+        stellID = args.stellID
+
     if isinstance(args.iota_targ,list):
         iota_target = args.iota_targ
     else:
@@ -99,7 +103,8 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('ppp.txt')),[args.ppp])
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_ma.txt')),[args.Nt_ma])
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_coils.txt')),[args.Nt_coils])
-    np.savetxt(str(pl.Path(outdir).joinpath('num_coils.txt')),[args.num_coils]) 
+    np.savetxt(str(pl.Path(outdir).joinpath('num_coils.txt')),[args.num_coils])
+    np.savetxt(str(pl.Path(outdir).joinpath('contNum.txt')),[args.contNum])
     np.savetxt(str(pl.Path(outdir).joinpath('mmax.txt')),[args.mmax]) 
     np.savetxt(str(pl.Path(outdir).joinpath('nmax.txt')),[args.nmax])
     np.savetxt(str(pl.Path(outdir).joinpath('nfp.txt')),[args.nfp])
@@ -112,6 +117,7 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('xtol_abs.txt')),[args.xtol_abs])
     np.savetxt(str(pl.Path(outdir).joinpath('xtol_rel.txt')),[args.xtol_rel])
     np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[args.qfm_vol]) #This will be overwritten if the QFM surface is included in the optimization. 
+    np.savetxt(str(pl.Path(outdir).joinpath('contRad.txt')),[args.contRad])
 
     with open(str(pl.Path(outdir).joinpath('package.txt')),'w') as f:
         f.write(args.package)
@@ -124,22 +130,26 @@ def get_objective():
         sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
         with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
             f.write('{:}\n'.format(sourcedir))
-            f.write('stellID: {:}'.format(args.stellID))
-        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=args.stellID,num_coils=args.num_coils,copies=num_stell) 
-        eta_bar = np.repeat(eta_bar,num_stell)
+            f.write('stellID: {:}'.format(stellID))
+        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None
         if args.QFM_wt > 0:
-            xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
             xopt_rld = []
-            for i in range(num_stell):
-                xopt_rld.append(xopt_old)
+            if stellID != None:
+                for i in range(num_stell):
+                    xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stellID)))))
+            else:
+                for stell in range(num_stell):
+                    xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stell)))))
+    
     elif args.flat:
-        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr)
+        (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr, contNum=args.contNum, contRad=args.contRad)
         eta_bar = np.repeat(1,num_stell)
+    
     else:
-        (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell)
+        (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, contNum=args.contNum, contRad=args.contRad)
         eta_bar = np.repeat(0.685,num_stell)
 
-    stellarators = [CoilCollection(coils, currents, args.nfp, True) for i in range(num_stell)]
+    stellarators = [CoilCollection(coils, currents[i], args.nfp, True) for i in range(num_stell)] #FIXME multiple instances of currents?
 
     coil_length_target = None
     magnetic_axis_length_target = None

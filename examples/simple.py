@@ -81,7 +81,7 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
 x = obj.x0
 obj.update(x)
 obj.callback(x)
-#obj.save_to_matlab('matlab_init')
+
 if False:
     taylor_test(obj, x, order=1, export=True)
     taylor_test(obj, x, order=2)
@@ -109,7 +109,6 @@ res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20,
 
 info("%s" % res)
 xmin = res.x
-#obj.save_to_matlab('matlab_optim')
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
 
