@@ -282,7 +282,7 @@ class NearAxisQuasiSymmetryObjective():
                 self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
                 fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=self.xopt_rld[i],outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
                 self.res10 = sum(fopts)
-                info("QFM surface reloaded from previous run.")
+                info("QFM surface(s) reloaded from previous run.")
                 self.initial_qfm_opt = True
             if not self.initial_qfm_opt:  
                 runs = 1

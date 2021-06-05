@@ -137,7 +137,7 @@ def get_objective():
                 xopt_rld = []
                 if stellID != None:
                     xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stellID))))
-                    [xopt_rld.append(xopt_old) for i in range(num_stell)
+                    [xopt_rld.append(xopt_old) for i in range(num_stell)]
                 else:
                     for stell in range(num_stell):
                         xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stell)))))
