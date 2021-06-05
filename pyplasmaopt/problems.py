@@ -47,6 +47,16 @@ class NearAxisQuasiSymmetryObjective():
         self.biotsavart_group = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList] 
         for i in stellList:
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
+            # Check that magnetic field has correct sign
+            gamma = self.ma_group[i].gamma
+            X = gamma[...,0]
+            Y = gamma[...,1]
+            R = np.sqrt(X**2 + Y**2)
+            BX = self.biotsavart_group[i].B[...,0]
+            BY = self.biotsavart_group[i].B[...,1]
+            BZ = self.biotsavart_group[i].B[...,2]
+            BP = -Y*BX/R + X*BY/R
+            assert(np.sign(BP[0])==1)
         self.qsf_group = [QuasiSymmetricField(eta_bar[i], self.ma_group[i], qs_N) for i in stellList] 
         self.ninsamples = ninsamples
         self.noutsamples = noutsamples
