@@ -28,7 +28,7 @@ class NearAxisQuasiSymmetryObjective():
                  constrained=True, keepAxis=True, iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
                  ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',xopt_rld=None,major_radius=1.4,
-                 renorm=False, image_freq=250, qs_N=0, res_axis_weight=1):
+                 renorm=False, image_freq=250, qs_N=0, res_axis_weight=1000):
         if (tanMap is True) and (keepAxis is False):
             raise NotImplementedError('New derivatives and logic switches are required to use keepAxis=False!')
         num_stellarators = len(iota_target)
@@ -43,7 +43,7 @@ class NearAxisQuasiSymmetryObjective():
         self.stellarator_group = stellarators
         self.seed = seed
         self.ma_group = mas
-        self.res_axis_weight = res_axis_weight
+        self.res_axis_weight = res_axis_weight #Extra weight for the res_axis terms in the tanMap
         self.biotsavart_group = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList] 
         for i in stellList:
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
@@ -127,7 +127,6 @@ class NearAxisQuasiSymmetryObjective():
         self.major_radius = major_radius
         self.xopt_rld = xopt_rld
         self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
-        self.tanMap_resAxis_additionalWeight = 1000 #Extra weight for the res_axis terms in the tanMap
         self.image_freq = image_freq
         self.old_points = copy.deepcopy([self.ma_group[i].points for i in stellList])
 
@@ -233,9 +232,9 @@ class NearAxisQuasiSymmetryObjective():
             tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
             self.calc_iotas = tanMap_iota
             
-            self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.tanMap_resAxis_additionalWeight*tanMap_group[i].res_axis()) for i in self.stellList]) 
-            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
-            self.drescurrent += np.concatenate(([self.current_fak * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() + 0.5 * self.tanMap_resAxis_additionalWeight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]),)
+            self.res4         = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i])**2 + self.res_axis_weight*tanMap_group[i].res_axis()) for i in self.stellList]) 
+            self.dresma      += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (0.5 * self.res_axis_weight*tanMap_group[i].d_res_axis_d_magneticaxiscoeffs()) for i in self.stellList]))
+            self.drescurrent += np.concatenate(([self.current_fak * self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcurrents() + 0.5 * self.res_axis_weight*tanMap_group[i].d_res_axis_d_coil_currents()) for i in self.stellList]),)
 
             if not self.freezeCoils:
                 self.drescoil    += np.sum([self.iota_weight * (1/iota_target[i]**2) * ((tanMap_iota[i] - iota_target[i]) * tanMap_group[i].d_iota_dcoilcoeffs() + 0.5 * self.res_axis_weight*tanMap_group[i].d_res_axis_d_coil_coeffs()) for i in self.stellList],axis=0) 
