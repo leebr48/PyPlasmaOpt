@@ -2,6 +2,7 @@ import numpy as np
 import scipy.integrate
 import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
+from pyplasmaopt.logging import info
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
@@ -9,7 +10,7 @@ class TangentMap():
                 verbose=2,nphi_guess=1000,nphi_integral=1000,
                 maxiter=20,axis_bvp=False,adjoint_axis_fd=True,
                 adjoint_axis_bvp=True,method='LSODA',
-                min_step=1e-10,max_step=1,check_adjoint=False): #FIXME maxiter was 50 and max_nodes was 100000
+                min_step=1e-10,max_step=1,check_adjoint=False):
         """
         stellarator: instance of CoilCollection representing modular coils
         magnetic_axis: instance of StellaratorSymmetricCylindricalFourierCurve
@@ -112,7 +113,7 @@ class TangentMap():
         if (np.abs(trM/2)>1):
             raise RuntimeError('Incorrect value of trM.')
         else:
-            return -1*np.arccos(trM/2)/(2*np.pi) #FIXME this should make the sign convention consistent with the rest of PPO
+            return -1*np.arccos(trM/2)/(2*np.pi) # The -1 is for a PPO sign convention
 
     def compute_tangent(self,phi,axis_poly=None,adjoint=False):
         """
@@ -139,7 +140,7 @@ class TangentMap():
                                             t_eval=phi,args=args,dense_output=True,
                                            method=self.method,min_step=self.min_step,
                                            max_step=self.max_step)
-        except ValueError: #FIXME you added this try/except loop to deal with the scipy glitch
+        except ValueError:
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
         
         if (out.status==0):
@@ -1103,7 +1104,7 @@ class TangentMap():
                                         min_step=self.min_step,max_step=self.max_step)
                 yend = out_check.sol(2*np.pi)
                 if self.verbose:
-                    print('Residual in adjoint axis: ',np.linalg.norm(out.sol(0)-yend))
+                    info(f'Residual in adjoint axis: {np.linalg.norm(out.sol(0)-yend)}')
             
             if (out.status==0):
                 # Evaluate polynomial on grid
@@ -1122,12 +1123,12 @@ class TangentMap():
                                         max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if (self.verbose):
-                    print('Norm: ',np.linalg.norm(yend-y0))
+                    info(f'Norm: {np.linalg.norm(yend-y0)}')
                 if (np.abs(yend[0]-y0[0]) < self.tol and np.abs(yend[1]-y0[1]) < self.tol):
                     if (self.verbose):
-                        print('yend: ',yend)
-                        print('y0: ',y0)
-                        print('Newton iteration converged')
+                        info(f'yend: {yend}')
+                        info(f'y0: {y0}')
+                        info('Newton iteration converged')
                     return out.y, out.sol
                 tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),axis_poly,adjoint=True)
                 U = np.zeros((2,2))
@@ -1190,12 +1191,12 @@ class TangentMap():
                                         min_step=self.min_step,max_step=self.max_step)
                 yend = out.sol(2*np.pi)
                 if self.verbose:
-                    print('Norm: ',np.linalg.norm(yend-y0))
+                    info(f'Norm: {np.linalg.norm(yend-y0)}')
                 if (np.abs(yend[0]-y0[0]) < self.tol and np.abs(yend[1]-y0[1]) < self.tol):
                     if self.verbose:
-                        print('yend: ',yend)
-                        print('y0: ',y0)
-                        print('Newton iteration converged')
+                        info(f'yend: {yend}')
+                        info(f'y0: {y0}')
+                        info('Newton iteration converged')
                     return out.y, out.sol
                 tangent_sol, tangent_poly = self.compute_tangent(np.array([2*np.pi]),out.sol)
                 U = np.zeros((2,2))
@@ -1501,8 +1502,8 @@ class TangentMap():
 
         P = 2*np.pi/nfp # Period
 
-        phi = np.linspace(0, P, num=nphi, endpoint=True)
-        #diff_phi = np.repeat(P,nphi)/nphi
+        phi = np.linspace(0, P, num=nphi, endpoint=False)
+        diff_phi = np.repeat(P,nphi)/nphi
         
         R,Z = self.axis_poly(phi)
         
@@ -1511,13 +1512,10 @@ class TangentMap():
        
         # These are just standard Fourier transform formulas
 
-        Rcoeffs[0] = 1/P * np.trapz(R,phi)
-        #Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
+        Rcoeffs[0] = 1/P * np.einsum('i,i->',R,diff_phi)
 
         for k in range(1,Nt+1):
-            Rcoeffs[k] = 2/P * np.trapz(R*np.cos(2*np.pi/P*k*phi),phi)
-            Zcoeffs[k-1] = 2/P * np.trapz(Z*np.sin(2*np.pi/P*k*phi),phi)
-            #Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
-            #Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
+            Rcoeffs[k] = 2/P * np.einsum('i,i->',R*np.cos(2*np.pi/P*k*phi),diff_phi)
+            Zcoeffs[k-1] = 2/P * np.einsum('i,i->',Z*np.sin(2*np.pi/P*k*phi),diff_phi)
 
         return (Rcoeffs, Zcoeffs)

@@ -4,7 +4,6 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
 import pathlib as pl
-from pyplasmaopt.checkpoint import Checkpoint
 
 obj, args = get_objective()
 obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
@@ -16,7 +15,6 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
         #np.random.seed(1)
         h = np.random.rand(*(x.shape))
         np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction-%d.txt'%randind)), h)
-        #print('h: ',h)
         '''
         if export:
             obj.update(h)
@@ -81,7 +79,7 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
 x = obj.x0
 obj.update(x)
 obj.callback(x)
-
+#obj.save_to_matlab('matlab_init')
 if False:
     taylor_test(obj, x, order=1, export=True)
     taylor_test(obj, x, order=2)
@@ -91,31 +89,39 @@ if False:
 
 maxiter = args.iter
 memory = 200
-maxfun = args.iter * 100 
-iprint = -1
-maxls = 50 #Elizabeth's suggestion
 
 def J_scipy(x):
-    try:
-        obj.update(x)
-        info(f'RES: {obj.res}')
-        info(f'NORM DRES: {np.linalg.norm(obj.dres)}')
-        return obj.res, obj.dres
-    except RuntimeError as ex:
-        info(ex)
-        return 2*obj.res, -obj.dres
+    obj.update(x)
+    res = obj.res
+    dres = obj.dres
+    info(f'RES: {res}') ##############################FIXME keep?
+    info(f'NORM DRES: {np.linalg.norm(dres)}') #######FIXME keep?
+    return res, dres
 
-res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
-        options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
-               callback=obj.callback) 
+res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, #FIXME - tol was 1e-15
+               options={"maxiter": maxiter, "maxcor": memory},
+               callback=obj.callback)
 
 info("%s" % res)
 xmin = res.x
+print('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+
+
+multiplier = xmin[obj.current_dof_idxs[0]]/10
+randos = multiplier*np.random.rand(len(xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]]))
+xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]] += randos
+print('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+
+
+
+
+#obj.save_to_matlab('matlab_optim')
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
 
 iteration = len(obj.xiterates)-1
 Checkpoint(obj,iteration=iteration)
 np.savetxt(outdir + "xmin.txt", xmin)
+
 if args.Taylor:
-    taylor_test(obj, xmin, nrando=1)
+    taylor_test(obj, xmin, nrando=3)
