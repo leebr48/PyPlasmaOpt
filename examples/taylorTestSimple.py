@@ -94,6 +94,8 @@ def J_scipy(x):
     obj.update(x)
     res = obj.res
     dres = obj.dres
+    info(f'RES: {res}') ##############################FIXME keep?
+    info(f'NORM DRES: {np.linalg.norm(dres)}') #######FIXME keep?
     return res, dres
 
 res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, #FIXME - tol was 1e-15

@@ -133,13 +133,16 @@ def get_objective():
             f.write('stellID: {:}'.format(stellID))
         (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None
         if args.QFM_wt > 0:
-            xopt_rld = []
-            if stellID != None:
-                for i in range(num_stell):
-                    xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stellID)))))
-            else:
-                for stell in range(num_stell):
-                    xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stell)))))
+            try:
+                xopt_rld = []
+                if stellID != None:
+                    xopt_old = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stellID))))
+                    [xopt_rld.append(xopt_old) for i in range(num_stell)
+                else:
+                    for stell in range(num_stell):
+                        xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stell)))))
+            except OSError:
+                xopt_rld = None # Allows us to add a QFM surface when there was not one originally
     
     elif args.flat:
         (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr, contNum=args.contNum, contRad=args.contRad)

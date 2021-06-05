@@ -208,26 +208,17 @@ class BiotSavartQuasiSymmetricFieldDifferenceRenormalized():
         
         # dJ/dmi bits
         term1_part1 = 2 * np.einsum('ij,ikj,i->k',self.Bqs()-self.Bbs(),dBqs_by_dcoeffs,self.diff_arc_length())
-        term1_part2_firstsum = np.einsum('ij->i',self.Bqs()-self.Bbs())
-        term1_part2_secondsum = np.einsum('ikj,imk->im',self.dBbs_by_dX(),self.dgamma_by_dcoeff()) 
-        term1_part2 = -2 * np.einsum('i,ij,i->j',term1_part2_firstsum,term1_part2_secondsum,self.diff_arc_length())     
+        term1_part2 = -2 * np.einsum('ij,ikj,imk,i->m',(self.Bqs()-self.Bbs()),self.dBbs_by_dX(),self.dgamma_by_dcoeff(),self.diff_arc_length())
         term1 = term1_part1 + term1_part2
 
-        term2_numerator = np.einsum('ij->i',(self.Bqs()-self.Bbs())**2)
-        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff(),self.dgamma_by_dphi())
-        term2 = np.einsum('i,i,ij,i->j',term2_numerator,1/self.dgamma_by_dphi_norm(),term2_sum,self.diff_arc_length())
+        term2 = np.einsum('i,i,imj,ij->m', 1/self.arc_length(), np.sum((self.Bqs()-self.Bbs())**2, axis=1), self.d2gamma_by_dphidcoeff(), self.dgamma_by_dphi())/self.arc_length().shape[0]
 
         dJ_dmi = term1 + term2
 
         # dK/dmi bits
-        term1_firstsum = np.einsum('ij->i',self.Bbs())
-        term1_secondsum = np.einsum('ikj,imk->im',self.dBbs_by_dX(),self.dgamma_by_dcoeff()) 
-        term1 = 2 * np.einsum('i,ij,i->j',term1_firstsum,term1_secondsum,self.diff_arc_length())
+        term1 = 2 * np.einsum('ij,ikj,imk,i->m',self.Bbs(),self.dBbs_by_dX(),self.dgamma_by_dcoeff(),self.diff_arc_length())
+        term2 = np.einsum('i,i,imj,ij->m', 1/self.arc_length(), np.sum(self.Bbs()**2, axis=1), self.d2gamma_by_dphidcoeff(), self.dgamma_by_dphi()) /self.arc_length().shape[0]       
 
-        term2_numerator = np.einsum('ij->i',self.Bbs()**2)
-        term2_sum = np.einsum('ikj,ij->ik',self.d2gamma_by_dphidcoeff(),self.dgamma_by_dphi())
-        term2 = np.einsum('i,i,ij,i->j',term2_numerator,1/self.dgamma_by_dphi_norm(),term2_sum,self.diff_arc_length())
-        
         dK_dmi = term1 + term2
 
         # Chain rule

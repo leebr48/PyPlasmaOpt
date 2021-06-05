@@ -360,7 +360,7 @@ class QuasiSymmetricField(PropertyManager):
                     soln = full_soln[0]
                     if full_soln[2] != 1:
                         print(full_soln[3])
-                    #    raise RuntimeError('fsolve failed to find a solution.') #FIXME - should this be active?
+                        raise RuntimeError('fsolve failed to find a solution.') #FIXME - should this be active?
                     break
 
         self.__state[:] = soln[:]
