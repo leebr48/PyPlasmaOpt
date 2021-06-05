@@ -98,6 +98,8 @@ maxls = 50 #Elizabeth's suggestion
 def J_scipy(x):
     try:
         obj.update(x)
+        info(f'RES: {obj.res}')
+        info(f'NORM DRES: {np.linalg.norm(obj.dres)}')
         return obj.res, obj.dres
     except RuntimeError as ex:
         info(ex)

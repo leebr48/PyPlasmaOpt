@@ -16,3 +16,6 @@ output-*/
 *.npy
 *.log
 *.stat
+*.out
+*.err
+*.batch
