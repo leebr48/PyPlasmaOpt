@@ -103,7 +103,9 @@ def J_scipy(x):
         return obj.res, obj.dres
     except RuntimeError as ex:
         info(ex)
-        return 2*obj.res, -obj.dres
+        obj.res = 2 * obj.res # For each failure, the error gets progressively larger.
+        obj.dres = 2 * obj.dres
+        return obj.res, -obj.dres
 
 res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
         options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
