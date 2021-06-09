@@ -6,29 +6,16 @@ import numpy as np
 import pathlib as pl
 from pyplasmaopt.checkpoint import Checkpoint
 
+np.set_printoptions(floatmode='unique') # Ensures data is saved in full detail
+
 obj, args = get_objective()
-obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
 
 outdir = obj.outdir
 
-def taylor_test(obj, x, order=6, export=False, nrando=1):
+def taylor_test(obj, x, order=6, nrando=1):
     for randind in range(nrando):
-        #np.random.seed(1)
         h = np.random.rand(*(x.shape))
         np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction-%d.txt'%randind)), h)
-        #print('h: ',h)
-        '''
-        if export:
-            obj.update(h)
-            obj.save_to_matlab('h')
-            obj.update(x+h)
-            obj.save_to_matlab('xplush')
-            print('x+h', obj.res)
-            obj.update(x)
-            obj.save_to_matlab('x')
-            print('x', obj.res)
-        else:
-        '''
         obj.update(x)
         dj0 = obj.dres
         djh = sum(dj0*h)
@@ -82,13 +69,6 @@ x = obj.x0
 obj.update(x)
 obj.callback(x)
 
-if False:
-    taylor_test(obj, x, order=1, export=True)
-    taylor_test(obj, x, order=2)
-    taylor_test(obj, x, order=4)
-    taylor_test(obj, x, order=6)
-    import sys; sys.exit()
-
 maxiter = args.iter
 memory = 200
 maxfun = args.iter * 100 
@@ -99,11 +79,11 @@ def J_scipy(x):
     try:
         obj.update(x)
         info(f'RES: {obj.res}')
-        info(f'NORM DRES: {np.linalg.norm(obj.dres)}')
+        info(f'NORM(DRES): {np.linalg.norm(obj.dres)}')
         return obj.res, obj.dres
     except RuntimeError as ex:
         info(ex)
-        obj.res = 2 * obj.res # For each failure, the error gets progressively larger.
+        obj.res = 2 * obj.res # For each failure, the error gets progressively larger. 
         obj.dres = 2 * obj.dres
         return obj.res, -obj.dres
 
@@ -117,7 +97,10 @@ J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
 
 iteration = len(obj.xiterates)-1
-Checkpoint(obj,iteration=iteration)
 np.savetxt(outdir + "xmin.txt", xmin)
+obj.plot('iteration-%04i.png' % iteration, iteration=iteration)
+if obj.qfm_weight > obj.ignore_tol:
+    obj.qfmPlot('qfmSurface',iteration)
+
 if args.Taylor:
     taylor_test(obj, xmin, nrando=1)

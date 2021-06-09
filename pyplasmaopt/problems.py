@@ -5,7 +5,6 @@ from .curve import GaussianSampler
 from .stochastic_objective import StochasticQuasiSymmetryObjective, CVaR
 from .logging import info
 from .qfm_surface import QfmSurface
-from .grad_optimizer import GradOptimizer
 from .tangent_map import TangentMap
 from pyplasmaopt.checkpoint import Checkpoint
 
@@ -18,7 +17,7 @@ import copy
 
 class NearAxisQuasiSymmetryObjective():
     def __init__(self, stellarators, mas, iota_target, eta_bar=-2.25, Nt_ma=6,
-                 coil_length_target=None, magnetic_axis_length_target=None,
+                 coil_length_targets=None, magnetic_axis_length_targets=None,
                  coil_length_weight=1, ma_length_weight=1, curvature_weight=1e-6, 
                  torsion_weight=1e-4, tikhonov_weight=0., arclength_weight=0., 
                  sobolev_weight=0., minimum_distance=0.04, distance_weight=1.,
@@ -70,12 +69,17 @@ class NearAxisQuasiSymmetryObjective():
             self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifference(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]
         coils = self.stellarator_group[0]._base_coils
         self.J_coil_lengths    = [CurveLength(coil) for coil in coils]
-        self.J_axis_length     = [CurveLength(self.ma_group[i]) for i in stellList]
-        if coil_length_target is not None:
-            self.coil_length_targets = [coil_length_target for coil in coils]
+        self.J_axis_lengths    = [CurveLength(self.ma_group[i]) for i in stellList]
+        if coil_length_targets is not None:
+            self.coil_length_targets = coil_length_targets
         else:
             self.coil_length_targets = [J.J() for J in self.J_coil_lengths]
-        self.magnetic_axis_length_target = magnetic_axis_length_target or self.J_axis_length[0].J() 
+            np.savetxt(str(pl.Path(outdir).joinpath('coil_length_targets.txt')),self.coil_length_targets)
+        if magnetic_axis_length_targets is not None:
+            self.magnetic_axis_length_targets = magnetic_axis_length_targets
+        else:
+            self.magnetic_axis_length_targets = [J.J() for J in self.J_axis_lengths]
+            np.savetxt(str(pl.Path(outdir).joinpath('magnetic_axis_length_targets.txt')),self.magnetic_axis_length_targets)
 
         self.J_coil_curvatures = [CurveCurvature(coil, length) for (coil, length) in zip(coils, self.coil_length_targets)]
         self.J_coil_torsions   = [CurveTorsion(coil, p=2) for coil in coils]
@@ -86,8 +90,8 @@ class NearAxisQuasiSymmetryObjective():
         self.coil_length_weight = coil_length_weight
         self.ma_length_weight = ma_length_weight
         self.iota_target                 = iota_target #This is a LIST of floats now. 
-        self.curvature_weight             = curvature_weight 
-        self.torsion_weight               = torsion_weight
+        self.curvature_weight            = curvature_weight 
+        self.torsion_weight              = torsion_weight
         self.num_ma_dofs = len(self.ma_group[0].get_dofs())  
         self.current_fak = 1./(4 * pi * 1e-7)
         
@@ -203,12 +207,12 @@ class NearAxisQuasiSymmetryObjective():
         self.x[:] = x
         J_BSvsQS          = self.J_BSvsQS #This is a list now! 
         J_coil_lengths    = self.J_coil_lengths 
-        J_axis_length     = self.J_axis_length #List now! 
+        J_axis_lengths    = self.J_axis_lengths #List now! 
         J_coil_curvatures = self.J_coil_curvatures 
         J_coil_torsions   = self.J_coil_torsions 
 
         iota_target                  = self.iota_target #A list now
-        magnetic_axis_length_target  = self.magnetic_axis_length_target 
+        magnetic_axis_length_targets = self.magnetic_axis_length_targets 
         curvature_weight             = self.curvature_weight 
         torsion_weight               = self.torsion_weight
         qsf_group = self.qsf_group #List
@@ -230,8 +234,8 @@ class NearAxisQuasiSymmetryObjective():
         else:
             self.res2 = 0
 
-        self.res3    = self.ma_length_weight * np.sum([0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length[i].J() - magnetic_axis_length_target)**2 for i in self.stellList]) 
-        self.dresma += self.ma_length_weight * np.concatenate(([(1/magnetic_axis_length_target)**2 * (J_axis_length[i].J()-magnetic_axis_length_target) * J_axis_length[i].dJ_by_dcoefficients() for i in self.stellList]))
+        self.res3    = self.ma_length_weight * np.sum([0.5 * (1/magnetic_axis_length_targets[i])**2 * (J_axis_lengths[i].J() - magnetic_axis_length_targets[i])**2 for i in self.stellList])
+        self.dresma += self.ma_length_weight * np.concatenate(([(1/magnetic_axis_length_targets[i])**2 * (J_axis_lengths[i].J()-magnetic_axis_length_targets[i]) * J_axis_lengths[i].dJ_by_dcoefficients() for i in self.stellList]))
         
         if not self.tanMap:
             self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
@@ -288,6 +292,7 @@ class NearAxisQuasiSymmetryObjective():
         else:
             self.res9 = 0
 
+        iteration = len(self.xiterates)
         if self.qfm_weight > self.ignore_tol:
             if (self.xopt_rld is not None) and (not self.initial_qfm_opt):
                 self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
@@ -302,12 +307,12 @@ class NearAxisQuasiSymmetryObjective():
                     self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
                     
                     # Initialize parameters - circular cross section torus
-                    paramsInitR = np.zeros((self.qfm_group[0].mnmax)) #Should be fine
-                    paramsInitZ = np.zeros((self.qfm_group[0].mnmax)) #Should be fine
+                    paramsInitR = np.zeros((self.qfm_group[0].mnmax))
+                    paramsInitZ = np.zeros((self.qfm_group[0].mnmax))
                     
-                    approx_plasma_minor_radius = 1/np.pi*np.sqrt(self.qfm_volume/2/self.major_radius) #Minor radius of a torus
-                    paramsInitR[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume)
-                    paramsInitZ[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume)
+                    approx_plasma_minor_radius = 1/np.pi*np.sqrt(self.qfm_volume/2/self.major_radius) # Minor radius of a torus
+                    paramsInitR[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = approx_plasma_minor_radius
+                    paramsInitZ[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = -1*approx_plasma_minor_radius
                     
                     paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
@@ -509,8 +514,7 @@ class NearAxisQuasiSymmetryObjective():
         from mpl_toolkits.mplot3d import Axes3D
         import matplotlib.cm as cm
         import plotly.graph_objects as go
-        if iteration != 0:
-            Checkpoint(self,iteration=iteration)
+        Checkpoint(self,iteration=iteration)
         fig = plt.figure()
         ax = fig.add_subplot(1, 2, 1, projection="3d")
         numCoils = len(self.stellarator_group[0].coils)

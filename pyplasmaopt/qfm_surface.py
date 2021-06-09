@@ -1,5 +1,4 @@
 import numpy as np
-#import os
 import pathlib as pl
 from math import pi
 from .grad_optimizer import GradOptimizer
@@ -7,12 +6,10 @@ from .biotsavart import BiotSavart
 
 class QfmSurface():
     
-    #def __init__(self, mmax, nmax, nfp, biotsavart, ntheta, nphi, volume):
     def __init__(self, mmax, nmax, nfp, stellarator, ntheta, nphi, volume):
         self.mmax = mmax
         self.nmax = nmax
         self.nfp = nfp
-        #self.biotsavart = biotsavart
         self.biotsavart = BiotSavart(stellarator.coils, stellarator.currents)
         self.stellarator = stellarator
         self.mnmax,self.xm,self.xn = self.init_modes(mmax,nmax)
@@ -764,20 +761,19 @@ class QfmSurface():
         if (len(paramsInit)!=2*self.mnmax-1):
             raise ValueError('paramsInit has incorrect length')
 
-        optimizer = GradOptimizer(len(paramsInit),outdir=outdir,stellID=stellID)
-        optimizer.add_objective(self.quadratic_flux,self.d_quadratic_flux,1)
-        #xopt, fopt, result = optimizer.optimize(paramsInit,package='scipy',method='BFGS')
+        self.optimizer = GradOptimizer(len(paramsInit),outdir=outdir,stellID=stellID)
+        self.optimizer.add_objective(self.quadratic_flux,self.d_quadratic_flux,1)
         if package=='scipy':
-            xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
+            xopt, fopt, result = self.optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
             success = (result == 0) or (result == 2)
         else:
-            xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,**kwargs)
+            xopt, fopt, result = self.optimizer.optimize(paramsInit,package=package,method=method,**kwargs)
             success = result >= 0
+
         if (success):
             self.paramsPrev = xopt
             return fopt
         else:
-            #raise RuntimeError('QFM solver not successful!')
             raise RuntimeError('QFM solver not successful! Result = %d'%result)
 
     def d_qfm_metric_d_coil_coeffs(self,params=None):
