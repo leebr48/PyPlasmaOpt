@@ -4,7 +4,6 @@ import sys
 import scipy.linalg
 import scipy.optimize
 import nlopt
-#import os
 import pathlib as pl
 from mpi4py import MPI
 
@@ -285,12 +284,6 @@ class GradOptimizer:
         self.objective_hist.append(objective)
         self.neval_objectives += 1
         
-        rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0) and (self.outdir != None):
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist.txt')),self.objectives_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist.txt')),self.objective_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist.txt')),self.parameters_hist)
-        
         return objective
                 
     def objectives_grad_fun(self,x):
@@ -323,10 +316,6 @@ class GradOptimizer:
         grad_norm = scipy.linalg.norm(objective_grad)
         self.objectives_grad_norm_hist.append(grad_norm)
         self.neval_objectives_grad += 1
-        
-        rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0) and (self.outdir != None):
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)
         
         return objective_grad
     
@@ -432,17 +421,10 @@ class GradOptimizer:
             self._test_method_scipy(method)
             [xopt, fopt, result] = self.scipy_optimize(x,method,**kwargs)
             
-        # Save output 
-        rank = MPI.COMM_WORLD.Get_rank()
-        if (rank==0) and (self.outdir != None):
-            np.savetxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(self.stellID))),xopt)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('fopt_{:}.txt'.format(self.stellID))),[fopt])
-            np.savetxt(str(pl.Path(self.outdir).joinpath('result_{:}.txt'.format(self.stellID))),[result])
-            np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist_{:}.txt'.format(self.stellID))),self.parameters_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist_{:}.txt'.format(self.stellID))),self.objectives_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist_{:}.txt'.format(self.stellID))),self.objective_hist)
-            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist_{:}.txt'.format(self.stellID))),self.objectives_grad_norm_hist)
-            
+        self.xopt_to_save = xopt
+        self.fopt_to_save = [fopt]
+        self.result_to_save = [result]
+    
         return xopt, fopt, result
     
     def nlopt_objective(self, x, grad):
@@ -775,8 +757,17 @@ class GradOptimizer:
                 raise ValueError('method must be in'+\
                                 str(self.scipy_methods_bound_constrrained))
 
-
-                 
-
-              
-  
+    def saveGradOptInfo(self):
+        '''
+        Save relevant outputs. 
+        '''
+        rank = MPI.COMM_WORLD.Get_rank()
+        if (rank==0) and (self.outdir != None):
+            np.savetxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(self.stellID))),self.xopt_to_save)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('fopt_{:}.txt'.format(self.stellID))),self.fopt_to_save)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('result_{:}.txt'.format(self.stellID))),self.result_to_save)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('parameters_hist_{:}.txt'.format(self.stellID))),self.parameters_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_hist_{:}.txt'.format(self.stellID))),self.objectives_hist)
+            np.savetxt(str(pl.Path(self.outdir).joinpath('objective_hist_{:}.txt'.format(self.stellID))),self.objective_hist)
+            if self.stellID == 0:
+                np.savetxt(str(pl.Path(self.outdir).joinpath('objectives_grad_norm_hist.txt')),self.objectives_grad_norm_hist)

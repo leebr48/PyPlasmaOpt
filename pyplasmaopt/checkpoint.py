@@ -54,6 +54,9 @@ def Checkpoint(obj, iteration=0):
     np.savetxt(obj.outdir + "xiterates.txt", obj.xiterates)
     np.savetxt(obj.outdir + "Jvals_individual.txt", obj.Jvals_individual)
 
+    if obj.qfm_weight > obj.ignore_tol:
+        [obj.qfm_group[i].optimizer.saveGradOptInfo() for i in obj.stellList]
+
     save = 'Stellarator parameters last saved after iteration %d.\n' % iteration
     with open(str(pl.Path(obj.outdir).joinpath('lastSave.txt')), "w") as f:
         f.write(save)

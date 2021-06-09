@@ -125,13 +125,23 @@ def get_objective():
         f.write(args.method)
             
     xopt_rld = None
+    coil_length_targets = None
+    magnetic_axis_length_targets = None
 
     if args.rld:
         sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
         with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
             f.write('{:}\n'.format(sourcedir))
             f.write('stellID: {:}'.format(stellID))
-        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None
+        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None 
+        try:
+            coil_length_targets = np.loadtxt(str(pl.Path(sourcedir).joinpath('coil_length_targets.txt')),ndmin=1)
+        except OSError:
+            pass
+        try:
+            magnetic_axis_length_targets = np.loadtxt(str(pl.Path(sourcedir).joinpath('magnetic_axis_length_targets.txt')),ndmin=1)
+        except OSError:
+            pass
         if args.QFM_wt > 0:
             try:
                 xopt_rld = []
@@ -152,14 +162,11 @@ def get_objective():
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, contNum=args.contNum, contRad=args.contRad)
         eta_bar = np.repeat(0.685,num_stell)
 
-    stellarators = [CoilCollection(coils, currents[i], args.nfp, True) for i in range(num_stell)] #FIXME multiple instances of currents?
-
-    coil_length_target = None
-    magnetic_axis_length_target = None
+    stellarators = [CoilCollection(coils, currents[i], args.nfp, True) for i in range(num_stell)]
 
     obj = NearAxisQuasiSymmetryObjective(
         stellarators, mas, iota_target, eta_bar=eta_bar, Nt_ma=args.Nt_ma,
-        coil_length_target=coil_length_target, magnetic_axis_length_target=magnetic_axis_length_target,
+        coil_length_targets=coil_length_targets, magnetic_axis_length_targets=magnetic_axis_length_targets,
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
