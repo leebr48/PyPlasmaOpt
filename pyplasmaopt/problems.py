@@ -71,6 +71,9 @@ class NearAxisQuasiSymmetryObjective():
         self.J_coil_lengths    = [CurveLength(coil) for coil in coils]
         self.J_axis_lengths    = [CurveLength(self.ma_group[i]) for i in stellList]
         if coil_length_targets is not None:
+            if len(coil_length_targets) != len(self.J_coil_lengths):
+                for i in range(len(coil_length_targets),len(self.J_coil_lengths)):
+                    coil_length_targets = np.append(coil_length_targets,self.J_coil_lengths[i].J())
             self.coil_length_targets = coil_length_targets
         else:
             self.coil_length_targets = [J.J() for J in self.J_coil_lengths]

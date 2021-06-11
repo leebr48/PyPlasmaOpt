@@ -169,7 +169,7 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
 
     return (coils, mas, currents)
 
-def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_coils=3,contNum=0,copies=1,oldFormat=False):
+def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_coils=3,contNum=0,newCont=0,contRad=0.5,Bc=0.1,copies=1,oldFormat=False):
     '''
     Data for coils, currents, and the magnetic axis is pulled from sourcedir. 
     There is only need to input *unique* coils - the others will be created using CoilCollection as usual.
@@ -256,4 +256,22 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_co
                         mas[j].coefficients[ind1][ind2] = ma_raw[j][ind1][ind2]
             mas[j].update() 
 
+    # Add new control coils if desired
+    if newCont > 0:
+        phi_vals,total_new_control_coils = coil_spacing(newCont,nfp)
+        for phi in phi_vals:
+            R0,zc = interp(mas[0].gamma,phi)
+            CC = ControlCoil(points)
+            CC.set_dofs([R0,phi,zc,phi+np.pi/2,np.pi/2,contRad])
+            coils.append(CC)
+        new_currents = [] 
+        for i in range(copies):
+            tot_old_current = np.sum(currents[i])
+            currents_part = [(1-Bc)*current for current in currents[i]]
+
+            new_current = Bc*tot_old_current/newCont
+            [currents_part.append(new_current) for j in range(newCont)]
+            new_currents.append(currents_part)
+        currents = new_currents
+    
     return (coils, mas, currents, eta_bar)

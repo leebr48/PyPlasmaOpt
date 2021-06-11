@@ -28,7 +28,8 @@ def get_objective():
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
-    parser.add_argument("--rld", type=str, required=False) #NOTE: you can only reload one stellarator at a time! 
+    parser.add_argument("--newCont", type=int, default=0)
+    parser.add_argument("--rld", type=str, required=False) 
     parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class.
     parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
     parser.add_argument("--stellID", type=int, default=-1)
@@ -133,7 +134,7 @@ def get_objective():
         with open(str(pl.Path(outdir).joinpath('reload_source.txt')),'w') as f:
             f.write('{:}\n'.format(sourcedir))
             f.write('stellID: {:}'.format(stellID))
-        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None 
+        (coils, mas, currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=args.ppp,Nt_ma=args.Nt_ma,Nt_coils=args.Nt_coils,nfp=args.nfp,stellID=stellID,num_coils=args.num_coils,contNum=args.contNum,newCont=args.newCont,contRad=args.contRad,copies=num_stell,oldFormat=args.oldFormat) # The 'copies' attribute is only used if stellID != None, and 'contRad' applies only to 'newCont'. 
         try:
             coil_length_targets = np.loadtxt(str(pl.Path(sourcedir).joinpath('coil_length_targets.txt')),ndmin=1)
         except OSError:
