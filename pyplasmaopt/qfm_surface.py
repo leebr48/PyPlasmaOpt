@@ -819,7 +819,7 @@ class QfmSurface():
         return X,Y
 
     def qfm_metric(self,paramsInit=None,full=True,outdir='.',stellID=0,lam=1,
-        tol=1e-6,maxiter=1000,**kwargs):
+        tol=1e-9,maxiter=10000,**kwargs):
         """
         Computes minimum of quadratic flux function beginning with initial guess
             paramsInit
@@ -849,7 +849,7 @@ class QfmSurface():
             # First use penalty formulation
             if not restart:
                 fun = lambda params : self.volume_penalty(params,full,lam)
-                res = minimize(fun, paramsInit, jac=True,method='L-BFGS-B',
+                res = minimize(fun, paramsInit, jac=True, method='L-BFGS-B',
                     options={'ftol':tol,'gtol':tol,'maxiter': maxiter,'maxcor': 200},**kwargs)
                 paramsInit = res.x
 
@@ -859,20 +859,16 @@ class QfmSurface():
             fun = lambda x: self.quadratic_flux(x,full,derivative=1)
             nlc = NonlinearConstraint(con, 0, 0)
             eq_constraints = [{'type': 'eq', 'fun': con, 'jac': d_con}]
-            res = minimize(
-                fun, paramsInit, jac=True, method='SLSQP',
+            res = minimize(fun, paramsInit, jac=True, method='SLSQP',
                 constraints=eq_constraints,options={'ftol':tol,'maxiter': maxiter},
                  **kwargs)
             success = res.success
             xopt = res.x
             fopt = res.fun
         else:
-#             optimizer = GradOptimizer(len(paramsInit),outdir=outdir,stellID=stellID)
             fun = lambda x: self.quadratic_flux(x,full,derivative=1)
-            res = minimize(fun, paramsInit,tol=tol,jac=True,method='BFGS',
-                options={'ftol':tol,'gtol':tol},**kwargs)
-            # res = minimize(fun, paramsInit, jac=True,method='L-BFGS-B',
-            #     options={'ftol':tol,'gtol':tol,'maxiter': maxiter,'maxcor': 200},**kwargs)
+            res = minimize(fun, paramsInit,jac=True,method='L-BFGS-B',
+                options={'ftol':tol,'gtol':tol,'maxiter': maxiter,'maxcor': 200},**kwargs)
             success = res.success
             xopt = res.x
             fopt = res.fun
