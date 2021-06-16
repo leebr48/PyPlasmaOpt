@@ -32,6 +32,62 @@ def count_files(pattern, path):
     out = len(result)
     return out
 
+def NoncoilReload(basename,sourcedir,Nt_ma,nfp,ppp,copy=None,stellID=0):
+    '''
+    Reloads magnetic axes, currents, and eta_bar so that runs can be restart easily. 
+    Inputs:
+        basename (str): name of file with magnetic axis coefficients [First line 
+            Nt_ma+1 R coeffs, second line Nt_ma Z coeffs] EXCLUDING final underscore,
+            file numbers, and '.txt'. Example: 'maCoeffs'
+        sourcedir (str): directory to load from, defined as in the rest of PPO
+        Nt_ma (int): number of terms used in the Fourier series for the magnetic axis,
+            defined as in the rest of PPO
+        nfp (int): number of field periods, defined as in the rest of PPO
+        ppp (int): points per period, defined as in the rest of PPO
+        copy (None or int): if None, every magnetic axis in sourcedir will be
+            reloaded. If int, a single magnetic axis (specified by the stellID
+            kwarg) will be reloaded and copied copy times in the output list.
+        stellID (int): only used if copy != None. Specifies the magnetic axis ID to 
+            reload when multiple are present in sourcedir.
+    Outputs:
+        mas (list): contains the appropriate number of entries (specified by the
+            copy kwarg) of StellaratorSymmetricCylindricalFourierCurve
+        currents (list): indices are currents[stellarator #][current #]
+        eta_bar (list): indices are eta_bar[stellarator #]
+    '''
+    ma_raw = []
+    currents = []
+    eta_bar = []
+    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
+    if copy == None:
+        num_stell = count_files(basename+'*',sourcedir)
+    else:
+        num_stell = copy
+    for stell in range(num_stell):
+        single_ma = []
+        if copy == None:
+            maname = basename + '_%d.txt'%stell
+            curname = 'currents_%d.txt'%stell
+            etabarname = 'eta_bar_%d.txt'%stell
+        else:
+            maname = basename + '_%d.txt'%stellID
+            curname = 'currents_%d.txt'%stellID
+            etabarname = 'eta_bar_%d.txt'%stellID
+        with open(os.path.join(sourcedir,maname),'r') as f:
+            for line in f:
+                linelist = [float(coeff) for coeff in line.strip().split()]
+                single_ma.append(linelist)
+        ma_raw.append(single_ma)
+        currents.append(np.loadtxt(os.path.join(sourcedir,curname)).tolist())
+        eta_bar.append(np.loadtxt(os.path.join(sourcedir,etabarname)))
+    mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(num_stell)]
+    for j in range(num_stell):
+        for ind1 in range(len(ma_raw[j])):
+            for ind2 in range(len(ma_raw[j][ind1])):
+                    mas[j].coefficients[ind1][ind2] = ma_raw[j][ind1][ind2]
+        mas[j].update() 
+    return mas,currents,eta_bar
+    
 def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1, contNum=0, contRad=0.5):
     assert (contNum==0 or contNum==3), 'NCSX was designed with 3 toroidal field control coils, and B!=1 on the axis if you use anything other than 0 or 3'
 
@@ -218,43 +274,11 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_co
             CC.set_dofs(shaped_coil_data[coilind][0])
             coils.append(CC)
     
-    ma_raw = []
-    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    
-    if stellID != None:
-        single_ma = []
-        with open(os.path.join(sourcedir,'maCoeffs_%d.txt'%stellID),'r') as f:
-            for line in f:
-                linelist = [float(coeff) for coeff in line.strip().split()]
-                ma_raw.append(linelist)
-        mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(copies)]
-        for j in range(copies):
-            for ind1 in range(len(ma_raw)):
-                for ind2 in range(len(ma_raw[ind1])):
-                        mas[j].coefficients[ind1][ind2] = ma_raw[ind1][ind2]
-            mas[j].update() #The magnetic axes should now be ready to go. 
-        currents = [np.loadtxt(os.path.join(sourcedir,'currents_%d.txt'%stellID)).tolist() for i in range(copies)] #Only the currents for the three unique coils need to be imported.
-        eta_bar = [np.loadtxt(os.path.join(sourcedir,'eta_bar_%d.txt'%stellID)) for i in range(copies)] #Reload eta_bar from previous run as a starting point. 
+    if stellID != None: 
+        mas,currents,eta_bar = NoncoilReload('maCoeffs',sourcedir,Nt_ma,nfp,ppp,copy=copies,stellID=stellID)
     else:
-        num_stell = count_files('maCoeffs_*',sourcedir)
-        currents = []
-        eta_bar = []
-        for stell in range(num_stell):
-            single_ma = []
-            with open(os.path.join(sourcedir,'maCoeffs_%d.txt'%stell),'r') as f:
-                for line in f:
-                    linelist = [float(coeff) for coeff in line.strip().split()]
-                    single_ma.append(linelist)
-            ma_raw.append(single_ma)
-            currents.append(np.loadtxt(os.path.join(sourcedir,'currents_%d.txt'%stell)).tolist())
-            eta_bar.append(np.loadtxt(os.path.join(sourcedir,'eta_bar_%d.txt'%stell)))
-        eta_bar = np.array(eta_bar)
-        mas = [StellaratorSymmetricCylindricalFourierCurve(Nt_ma, nfp, np.linspace(0, 1/nfp, numpoints, endpoint=False)) for i in range(num_stell)]
-        for j in range(num_stell):
-            for ind1 in range(len(ma_raw[j])):
-                for ind2 in range(len(ma_raw[j][ind1])):
-                        mas[j].coefficients[ind1][ind2] = ma_raw[j][ind1][ind2]
-            mas[j].update() 
+        assert count_files('maCoeffs'+'*',sourcedir) == copies, "To 'split' a stellarator, you MUST specify stellID, even if only one stellarator lives in the source directory."
+        mas,currents,eta_bar = NoncoilReload('maCoeffs',sourcedir,Nt_ma,nfp,ppp,copy=None)
 
     # Add new control coils if desired
     if newCont > 0:

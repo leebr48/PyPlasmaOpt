@@ -24,7 +24,8 @@ class NearAxisQuasiSymmetryObjective():
                  ninsamples=0, noutsamples=0, sigma_perturb=1e-4, 
                  length_scale_perturb=0.2, mode="deterministic",
                  outdir="output/", seed=1, freezeCoils=False, tanMap=False, 
-                 constrained=True, keepAxis=True, iota_weight=1, quasisym_weight=1, qfm_weight=0,
+                 constrained=True, keepAxis=True, tanMap_axis=None,
+                 iota_weight=1, quasisym_weight=1, qfm_weight=0,
                  qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
                  ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',xopt_rld=None,major_radius=1.4,
                  renorm=False, image_freq=250, qs_N=0, res_axis_weight=1000):
@@ -61,7 +62,21 @@ class NearAxisQuasiSymmetryObjective():
         self.noutsamples = noutsamples
         self.constrained = constrained
         self.keepAxis = keepAxis
-        self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=constrained) for i in stellList]
+        if tanMap and (tanMap_axis != None):
+            old_coeffs = copy.deepcopy([self.ma_group[i].coefficients for i in stellList])
+            for i in stellList:
+                for ind1 in range(len(self.ma_group[i].coefficients)):
+                    for ind2 in range(len(self.ma_group[i].coefficients[ind1])):
+                        self.ma_group[i].coefficients[ind1][ind2] = tanMap_axis[i].coefficients[ind1][ind2]
+                self.ma_group[i].update()
+            self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=constrained) for i in stellList]
+            for i in stellList:
+                for ind1 in range(len(self.ma_group[i].coefficients)):
+                    for ind2 in range(len(self.ma_group[i].coefficients[ind1])):
+                        self.ma_group[i].coefficients[ind1][ind2] = old_coeffs[i][ind1][ind2]
+                self.ma_group[i].update()
+        else:
+            self.tangentMap_group = [TangentMap(self.stellarator_group[i],self.ma_group[i],constrained=constrained) for i in stellList]
 
         if renorm:
             self.J_BSvsQS      = [BiotSavartQuasiSymmetricFieldDifferenceRenormalized(self.qsf_group[i], self.biotsavart_group[i]) for i in stellList]

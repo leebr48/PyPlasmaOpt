@@ -1482,7 +1482,7 @@ class TangentMap():
 
         return d_V_by_dcoilcoeffs
 
-    def ft_RZ(self,nfp=3,Nt=6,nphi=10000):
+    def ft_RZ(self,nfp=3,Nt=6,nphi=10000,adjoint=False):
         '''
         Calculates the Fourier coefficients for the R and Z
         coordinates of the magnetic axis.
@@ -1505,7 +1505,10 @@ class TangentMap():
         phi = np.linspace(0, P, num=nphi, endpoint=False)
         diff_phi = np.repeat(P,nphi)/nphi
         
-        R,Z = self.axis_poly(phi)
+        if not adjoint:
+            R,Z = self.axis_poly(phi)
+        else: 
+            R,Z = self.adjoint_axis_poly(phi)
         
         Rcoeffs = np.zeros(Nt+1)
         Zcoeffs = np.zeros(Nt)

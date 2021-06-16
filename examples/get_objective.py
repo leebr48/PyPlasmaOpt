@@ -12,7 +12,7 @@ def get_objective():
     parser.add_argument("--out", type=str, default="")
     parser.add_argument("--nfp", type=int, default=3)
     parser.add_argument("--num_coils", type=int, default=3)
-    parser.add_argument("--contNum", type=int, default=0) # Number of control coils to add to the problem. 
+    parser.add_argument("--contNum", type=int, default=0) # Number of control coils in the problem from the beginning. 
     parser.add_argument("--Nt_ma", type=int, default=6)
     parser.add_argument("--Nt_coils", type=int, default=6)
     parser.add_argument("--ppp", type=int, default=20)
@@ -28,11 +28,11 @@ def get_objective():
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
-    parser.add_argument("--newCont", type=int, default=0)
+    parser.add_argument("--newCont", type=int, default=0) # For adding control coils to previous optimization. 
     parser.add_argument("--rld", type=str, required=False) 
     parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class.
     parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
-    parser.add_argument("--stellID", type=int, default=-1)
+    parser.add_argument("--stellID", type=int, default=-1) 
     parser.add_argument("--iter", type=int, default=10000)
     parser.add_argument("--Taylor", action='store_true', default=False)
     parser.add_argument("--maj_rad", type=float, default=1.4)
@@ -128,6 +128,7 @@ def get_objective():
     xopt_rld = None
     coil_length_targets = None
     magnetic_axis_length_targets = None
+    tanMap_axis = None
 
     if args.rld:
         sourcedir = str(pl.Path.cwd().joinpath(args.rld).resolve())
@@ -141,6 +142,9 @@ def get_objective():
             pass
         try:
             magnetic_axis_length_targets = np.loadtxt(str(pl.Path(sourcedir).joinpath('magnetic_axis_length_targets.txt')),ndmin=1)
+            if (num_stell != 1) and (stellID != None):
+                ma_len_targ = magnetic_axis_length_targets[stellID]
+                magnetic_axis_length_targets = np.repeat(ma_len_targ,num_stell)
         except OSError:
             pass
         if args.QFM_wt > 0:
@@ -154,7 +158,14 @@ def get_objective():
                         xopt_rld.append(np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(stell)))))
             except OSError:
                 xopt_rld = None # Allows us to add a QFM surface when there was not one originally
-    
+        if args.tanMap:
+            if stellID != None:
+                tanMap_axis,_,_ = NoncoilReload('tanMap_axis_coeffs',sourcedir,args.Nt_ma,args.nfp,args.ppp,copy=num_stell,stellID=stellID)
+            else:
+                tanMap_axis,_,_ = NoncoilReload('tanMap_axis_coeffs',sourcedir,args.Nt_ma,args.nfp,args.ppp)
+            if tanMap_axis == []:
+                tanMap_axis = None
+
     elif args.flat:
         (coils, mas, currents) = make_flat_stell(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, nfp=args.nfp, num_coils=args.num_coils, major_radius=args.maj_rad, minor_radius=args.min_rad, kick=args.kick, magnitude=args.mag, z0factr=args.z0factr, contNum=args.contNum, contRad=args.contRad)
         eta_bar = np.repeat(1,num_stell)
@@ -171,7 +182,8 @@ def get_objective():
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
-        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap, constrained=args.cons, keepAxis=args.keepAx, 
+        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap,
+        constrained=args.cons, keepAxis=args.keepAx, tanMap_axis=tanMap_axis,
         iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
         xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,xopt_rld=xopt_rld,major_radius=args.maj_rad,
