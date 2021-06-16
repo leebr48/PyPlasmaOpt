@@ -36,15 +36,6 @@ def Checkpoint(obj, iteration=0):
         for item in obj.ma_group[i].coefficients:
             save.append(item.tolist())
         SaveMACoeffs(save,i,obj.outdir,'maCoeffs')
-        ''' #FIXME remove if not needed
-        with open(str(pl.Path(obj.outdir).joinpath('maCoeffs_%d.txt'%i)), "w") as f:
-            for line in save:
-                for ind,item in enumerate(line):
-                    f.write(str(item))
-                    if ind!=len(line)-1:
-                        f.write(' ')
-                f.write('\n')
-        '''
 
     for i,qsf in enumerate(obj.qsf_group):
         save1 = obj.qsf_group[i].eta_bar 
@@ -60,12 +51,10 @@ def Checkpoint(obj, iteration=0):
     if obj.qfm_weight > obj.ignore_tol:
         [obj.qfm_group[i].optimizer.saveGradOptInfo() for i in obj.stellList]
 
-    if obj.tanMap: #FIXME does this work???
+    if obj.tanMap:
         for i in obj.stellList:
             R,Z = obj.tangentMap_group[i].ft_RZ(nfp=obj.nfp,Nt=obj.Nt_ma,adjoint=False)
             SaveMACoeffs([R,Z],i,obj.outdir,'tanMap_axis_coeffs')
-            R,Z = obj.tangentMap_group[i].ft_RZ(nfp=obj.nfp,Nt=obj.Nt_ma,adjoint=True)
-            SaveMACoeffs([R,Z],i,obj.outdir,'tanMap_adjoint_axis_coeffs')
             
     save = 'Stellarator parameters last saved after iteration %d.\n' % iteration
     with open(str(pl.Path(obj.outdir).joinpath('lastSave.txt')), "w") as f:

@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pathlib as pl
 
+np.set_printoptions(floatmode='unique') # Ensures data is saved in full detail
+
 obj, args = get_objective()
-obj.plot('tmp.png') #This will only plot the coils and the first magnetic axis. 
 
 outdir = obj.outdir
 
@@ -15,23 +16,11 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
         #np.random.seed(1)
         h = np.random.rand(*(x.shape))
         np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction-%d.txt'%randind)), h)
-        '''
-        if export:
-            obj.update(h)
-            obj.save_to_matlab('h')
-            obj.update(x+h)
-            obj.save_to_matlab('xplush')
-            print('x+h', obj.res)
-            obj.update(x)
-            obj.save_to_matlab('x')
-            print('x', obj.res)
-        else:
-        '''
         obj.update(x)
         dj0 = obj.dres
         djh = sum(dj0*h)
         djhnorm = np.linalg.norm(djh)
-        print('djh norm: ', djhnorm)
+        info('djh norm: ', djhnorm)
         if order == 1:
             shifts = [0, 1]
             weights = [-1, 1]
@@ -79,43 +68,29 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
 x = obj.x0
 obj.update(x)
 obj.callback(x)
-#obj.save_to_matlab('matlab_init')
-if False:
-    taylor_test(obj, x, order=1, export=True)
-    taylor_test(obj, x, order=2)
-    taylor_test(obj, x, order=4)
-    taylor_test(obj, x, order=6)
-    import sys; sys.exit()
 
 maxiter = args.iter
 memory = 200
+maxfun = args.iter * 100 
+iprint = -1
+maxls = 50 #Elizabeth's suggestion
 
-def J_scipy(x):
-    obj.update(x)
-    res = obj.res
-    dres = obj.dres
-    info(f'RES: {res}') ##############################FIXME keep?
-    info(f'NORM DRES: {np.linalg.norm(dres)}') #######FIXME keep?
-    return res, dres
+J_eval = lambda y: J_evaluate(obj,y)
 
-res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, #FIXME - tol was 1e-15
-               options={"maxiter": maxiter, "maxcor": memory},
-               callback=obj.callback)
+res = minimize(J_eval, x, jac=True, method='l-bfgs-b', tol=1e-20, 
+        options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
+               callback=obj.callback) 
 
 info("%s" % res)
 xmin = res.x
-print('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+info('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
 
 
 multiplier = xmin[obj.current_dof_idxs[0]]/10
 randos = multiplier*np.random.rand(len(xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]]))
 xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]] += randos
-print('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+info('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
 
-
-
-
-#obj.save_to_matlab('matlab_optim')
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
 info("Minimum distance = %f" % J_distance.min_dist())
 

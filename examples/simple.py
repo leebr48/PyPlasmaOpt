@@ -4,7 +4,6 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
 import pathlib as pl
-from pyplasmaopt.checkpoint import Checkpoint
 
 np.set_printoptions(floatmode='unique') # Ensures data is saved in full detail
 
@@ -75,21 +74,9 @@ maxfun = args.iter * 100
 iprint = -1
 maxls = 50 #Elizabeth's suggestion
 
-def J_scipy(x):
-    try:
-        obj.update(x)
-        info(f'RES: {obj.res}')
-        info(f'NORM(DRES): {np.linalg.norm(obj.dres)}')
-        return obj.res, obj.dres
-    except RuntimeError as ex:
-        info(ex)
-        obj.res = 2 * obj.res # For each failure, the error gets progressively larger. 
-        obj.dres = 2 * obj.dres
-        info(f'RES: {obj.res}')
-        info(f'NORM(DRES): {np.linalg.norm(obj.dres)}')
-        return obj.res, -obj.dres
+J_eval = lambda y: J_evaluate(obj,y)
 
-res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
+res = minimize(J_eval, x, jac=True, method='l-bfgs-b', tol=1e-20, 
         options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
                callback=obj.callback) 
 
