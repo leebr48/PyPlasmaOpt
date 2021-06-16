@@ -85,6 +85,8 @@ def J_scipy(x):
         info(ex)
         obj.res = 2 * obj.res # For each failure, the error gets progressively larger. 
         obj.dres = 2 * obj.dres
+        info(f'RES: {obj.res}')
+        info(f'NORM(DRES): {np.linalg.norm(obj.dres)}')
         return obj.res, -obj.dres
 
 res = minimize(J_scipy, x, jac=True, method='l-bfgs-b', tol=1e-20, 
