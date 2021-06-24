@@ -33,7 +33,7 @@ def get_objective():
     parser.add_argument("--cons", action='store_false', default=True) # Controls the 'constrained' switch in the tangent map class.
     parser.add_argument("--keepAx", action='store_false', default=True) # Keep the magnetic axis in the parameter space
     parser.add_argument("--stellID", type=int, default=-1) 
-    parser.add_argument("--iter", type=int, default=10000)
+    parser.add_argument("--iter", type=int, default=100000)
     parser.add_argument("--Taylor", action='store_true', default=False)
     parser.add_argument("--maj_rad", type=float, default=1.4)
     parser.add_argument("--min_rad", type=float, default=0.33) # Minor radius of coils, not plasma 
