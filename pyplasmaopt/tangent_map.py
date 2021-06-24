@@ -993,7 +993,7 @@ class TangentMap():
         """
         Compute derivative of res_axis wrt coil coefficients
         Outputs:
-            d_res_axis_d_coil_currents (list of 1d arrays (ncoeffs)): derivatives of
+            d_res_axis_d_coil_coeffs (list of 1d arrays (ncoeffs)): derivatives of
                 residual between parameterization axis and true axis wrt coil
                 coeffs
         """

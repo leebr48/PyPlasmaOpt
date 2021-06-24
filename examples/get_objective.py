@@ -27,6 +27,7 @@ def get_objective():
     parser.add_argument("--QFM_wt", type=float, default=0)
     parser.add_argument("--flat", action='store_true', default=False)
     parser.add_argument("--frzCoils", action='store_true', default=False)
+    parser.add_argument("--frzMod", action='store_true', default=False)
     parser.add_argument("--tanMap", action='store_true', default=False) # Compute iota using tangent map method. 
     parser.add_argument("--newCont", type=int, default=0) # For adding control coils to previous optimization. 
     parser.add_argument("--rld", type=str, required=False) 
@@ -58,6 +59,9 @@ def get_objective():
     parser.add_argument("--contRad", type=float, default=1.3)
     parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
     args = parser.parse_args()
+
+    if args.frzMod and args.contNum == 0 and args.newCont == 0:
+        raise AssertionError('Do not use frzMod with no control coils - use frzCoils instead!')
 
     keys = list(args.__dict__.keys())
     cutoff_key = 'rld'
@@ -174,7 +178,7 @@ def get_objective():
         (coils, mas, currents) = get_ncsx_data(Nt_ma=args.Nt_ma, Nt_coils=args.Nt_coils, ppp=args.ppp, copies=num_stell, contNum=args.contNum, contRad=args.contRad)
         eta_bar = np.repeat(0.685,num_stell)
 
-    stellarators = [CoilCollection(coils, currents[i], args.nfp, True) for i in range(num_stell)]
+    stellarators = [CoilCollection(coils, currents[i], args.nfp, True, frzMod=args.frzMod) for i in range(num_stell)]
 
     obj = NearAxisQuasiSymmetryObjective(
         stellarators, mas, iota_target, eta_bar=eta_bar, Nt_ma=args.Nt_ma,
@@ -182,8 +186,8 @@ def get_objective():
         curvature_weight=args.curv, torsion_weight=args.tors,
         tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
-        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, tanMap=args.tanMap,
-        constrained=args.cons, keepAxis=args.keepAx, tanMap_axis=tanMap_axis,
+        mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, freezeMod=args.frzMod,
+        tanMap=args.tanMap, constrained=args.cons, keepAxis=args.keepAx, tanMap_axis=tanMap_axis,
         iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
         qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
         xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,xopt_rld=xopt_rld,major_radius=args.maj_rad,
