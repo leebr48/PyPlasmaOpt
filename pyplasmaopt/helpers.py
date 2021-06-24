@@ -87,10 +87,21 @@ def NoncoilReload(basename,sourcedir,Nt_ma,nfp,ppp,copy=None,stellID=0):
                     mas[j].coefficients[ind1][ind2] = ma_raw[j][ind1][ind2]
         mas[j].update() 
     return mas,currents,eta_bar
-    
-def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1, contNum=0, contRad=0.5):
-    assert (contNum==0 or contNum==3), 'NCSX was designed with 3 toroidal field control coils, and B!=1 on the axis if you use anything other than 0 or 3'
 
+def AddControlCoils(contNum, nfp, mas, points, contRad, coils):
+    phi_vals,total_control_coils = coil_spacing(contNum,nfp)
+    for phi in phi_vals:
+        R0,zc = interp(mas[0].gamma,phi)
+        CC = ControlCoil(points)
+        CC.set_dofs([R0,phi,zc,phi+np.pi/2,np.pi/2,contRad])
+        coils.append(CC)
+    return coils,total_control_coils
+
+def ControlCoilCurrent(major_radius, total_control_coils, Bc):
+    mu_nought = 4*np.pi*1e-7 #SI units
+    return 2*np.pi*major_radius*Bc/mu_nought/total_control_coils
+    
+def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1, contNum=0, contRad=1.3, Bc=0.1):
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     coil_data = np.loadtxt(os.path.join(dir_path, "data", "NCSX_coil_coeffs.dat"), delimiter=',')
@@ -124,24 +135,17 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1, contNum=0, contRad=0.
     
     # Add control coils if desired
     if contNum > 0:
-        phi_vals,total_control_coils = coil_spacing(contNum,nfp)
-        for phi in phi_vals:
-            R0,zc = interp(mas[0].gamma,phi)
-            CC = ControlCoil(points)
-            CC.set_dofs([R0,phi,zc,phi+np.pi/2,np.pi/2,contRad])
-            coils.append(CC)
+        coils,total_control_coils = AddControlCoils(contNum, nfp, mas, points, contRad, coils)
     else:
         total_control_coils = 0
 
-    # Set currents
+    # Set currents 
     if contNum > 0:
-        normfac = 1.584
-        cont_coil_current = -1*4.551387376532E+04/normfac # -1 is for PPO sign convention, normfac normalizes B to be about 1 on the axis
+        cont_coil_current = ControlCoilCurrent(1.492, total_control_coils, Bc)
     else:
-        normfac = 1.474
-
-    currents_part = [c/normfac for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]] # normalise to get a magnetic field of around 1 on the axis
-    [currents_part.append(cont_coil_current) for i in range(contNum)]
+        Bc = 0
+    currents_part = [c/1.474*(1-Bc) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]] # normalise to get a magnetic field of around 1 on the axis
+    [currents_part.append(-1*cont_coil_current) for i in range(contNum)] #-1 is for a PPO sign convention
 
     currents = [currents_part for i in range(copies)]
 
@@ -200,19 +204,13 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
     
     # Add control coils if desired
     if contNum > 0:
-        phi_vals,total_control_coils = coil_spacing(contNum,nfp)
-        for phi in phi_vals:
-            R0,zc = interp(mas[0].gamma,phi)
-            CC = ControlCoil(points)
-            CC.set_dofs([R0,phi,zc,phi+np.pi/2,np.pi/2,contRad])
-            coils.append(CC)
+        coils,total_control_coils = AddControlCoils(contNum, nfp, mas, points, contRad, coils)
     else:
         total_control_coils = 0
     
     # Set currents 
-    mu_nought = 4*np.pi*1e-7 #SI units 
     if contNum > 0:
-        cont_coil_current = 2*np.pi*major_radius*Bc/mu_nought/total_control_coils
+        cont_coil_current = ControlCoilCurrent(major_radius, total_control_coils, Bc)
     else:
         Bc = 0
     mod_coil_current = 2*np.pi*major_radius*(1-Bc)/mu_nought/total_mod_coils # Normalized to give B=1 on the axis.

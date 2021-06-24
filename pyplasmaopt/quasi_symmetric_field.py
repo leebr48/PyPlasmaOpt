@@ -295,7 +295,6 @@ class QuasiSymmetricField(PropertyManager):
                     ) \
                     + dtterm_by_dcoeff[:, None] * t + tterm[:, None] * dt_by_dcoeff[:, i, :]
 
-    # FIXME: this function could be split up so that the sensitivity is only computed when actually necessary
     def solve_state(self):
         n = self.n
         l = self.magnetic_axis.incremental_arclength[:, 0]

@@ -38,7 +38,7 @@ vmec_TCON0 = 2.00E+00
 vmec_NS_ARRAY = '9 29 49 99' #NOTE: could change first number to 3 VMEC is being difficult (but not preferred)
 vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12' #NOTE: could change first number to 1E-5 if VMEC is being difficult (but not preferred)
 vmec_LASYM = 'F'
-vmec_MPOL = 11 #NOTE: can make this lower if VMEC is being difficult (but not preferred)
+vmec_MPOL = 6 
 vmec_NTOR = 6
 vmec_LFREEB = 'T'
 vmec_NVACSKIP = 6
@@ -113,6 +113,7 @@ parser.add_argument("--noBoozRun", action='store_true', required=False, default=
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
 parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
+parser.add_argument("--largeMPOL", action='store_true', required=False, default=False) 
 args = parser.parse_args() 
 
 def var_assign(load,arg):
@@ -139,6 +140,9 @@ def strVar_assign(load,arg):
             quit()
     else:
         return arg
+
+if args.largeMPOL:
+    vmec_MPOL = 11
 
 for sourceitem in args.sourcedir:
     sourcedir = str(pl.Path.cwd().joinpath(sourceitem).resolve())

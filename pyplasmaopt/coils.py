@@ -1,7 +1,6 @@
-from .curve import RotatedCurve
+from .curve import RotatedCurve,ControlCoil
 import numpy as np
 from math import pi
-
 
 class CoilCollection():
     """
@@ -9,11 +8,13 @@ class CoilCollection():
     rotation to generate a full set of stellerator coils.
     """
 
-    def __init__(self, coils, currents, nfp, stellerator_symmetrie):
+    def __init__(self, coils, currents, nfp, stellerator_symmetrie, frzMod=False):
         self._base_coils = coils
         self._base_currents = currents
+        self.frzMod = frzMod
         self.coils = []
         self.currents = []
+        self.all_control_coil = []
         flip_list = [False, True] if stellerator_symmetrie else [False] 
         self.map = []
         self.current_sign = []
@@ -22,10 +23,14 @@ class CoilCollection():
                 for i in range(len(coils)):
                     if k == 0 and not flip:
                         self.coils.append(self._base_coils[i])
+                        iscontrol = True if isinstance(self._base_coils[i],ControlCoil) else False
+                        self.all_control_coil.append(iscontrol)
                         self.currents.append(self._base_currents[i])
                     else:
                         rotcoil = RotatedCurve(coils[i], 2*pi*k/nfp, flip)
                         self.coils.append(rotcoil)
+                        iscontrol = True if isinstance(coils[i],ControlCoil) else False
+                        self.all_control_coil.append(iscontrol)
                         self.currents.append(-self._base_currents[i] if flip else currents[i])
                     self.map.append(i)
                     self.current_sign.append(-1 if flip else +1)
@@ -33,6 +38,10 @@ class CoilCollection():
         for i in range(1, len(self._base_coils)):
             dof_ranges.append((dof_ranges[-1][1], dof_ranges[-1][1] + len(self._base_coils[i].get_dofs())))
         self.dof_ranges = dof_ranges
+        self.base_control_coil_count = 0
+        for i,x in enumerate(self._base_coils):
+            if isinstance(x,ControlCoil):
+                self.base_control_coil_count += 1
 
     def set_dofs(self, dofs):
         assert len(dofs) == self.dof_ranges[-1][1]
@@ -55,13 +64,22 @@ class CoilCollection():
         Add derivatives for all those coils that were obtained by rotation and
         reflection of the initial coils.
         """
-        assert len(derivatives) == len(self.coils) or len(derivatives) == len(self._base_coils)
+        lenDer = len(derivatives)
+        assert lenDer == len(self.coils) or lenDer == len(self._base_coils) or lenDer == self.base_control_coil_count
+        if self.frzMod and (lenDer == self.base_control_coil_count):
+            diff = len(self._base_coils) - self.base_control_coil_count
+            addor = [None]*diff
+            [addor.append(i) for i in derivatives]
+            derivatives = addor
         res = len(self._base_coils) * [None]
         for i in range(len(derivatives)):
+            if self.frzMod and (not self.all_control_coil[i]):
+                continue
             if res[self.map[i]] is None:
                 res[self.map[i]]  = derivatives[i]
             else:
                 res[self.map[i]] += derivatives[i]
+        res = [item for item in res if not (item is None)]
         return np.concatenate(res, axis=axis)
 
     def reduce_current_derivatives(self, derivatives):
