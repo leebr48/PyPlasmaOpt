@@ -142,6 +142,8 @@ class TangentMap():
                                            max_step=self.max_step)
         except ValueError:
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
+        except UserWarning:
+            raise RuntimeError('solve_ivp failed due to repeated convergence issues')
         
         if (out.status==0):
             return out.y, out.sol

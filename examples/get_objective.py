@@ -69,9 +69,9 @@ def get_objective():
     cutoff_number = len(keys) - cutoff_ind - 1 
     assert keys[0] == "out"
     if not args.__dict__[keys[0]] == "":
-        outdir = "output-%s" % args.__dict__[keys[0]]
+        outdir = "out-%s" % args.__dict__[keys[0]]
     else:
-        outdir = "output"
+        outdir = "out"
     if not args.rld:
         for i in range(1, len(keys)-cutoff_number):
             k = keys[i]
