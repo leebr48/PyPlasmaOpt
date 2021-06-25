@@ -269,7 +269,7 @@ class NearAxisQuasiSymmetryObjective():
         self.dresma      = np.zeros(self.ma_dof_idxs[1]-self.ma_dof_idxs[0]) 
         if not self.freezeCoils:
             self.drescoil    = np.zeros(self.coil_dof_idxs[1]-self.coil_dof_idxs[0])
-       
+
         """ Objective values """
         if not self.freezeCoils:
             self.res2      = 0.5 * self.coil_length_weight * sum( (1/l)**2 * (J2.J() - l)**2 for (J2, l) in zip(J_coil_lengths, self.coil_length_targets))

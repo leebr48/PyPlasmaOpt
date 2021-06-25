@@ -213,6 +213,7 @@ def make_flat_stell(Nt_coils=6, Nt_ma=6, nfp=3, ppp=20, num_coils=3, major_radiu
         cont_coil_current = ControlCoilCurrent(major_radius, total_control_coils, Bc)
     else:
         Bc = 0
+    mu_nought = 4*np.pi*1e-7 #SI units
     mod_coil_current = 2*np.pi*major_radius*(1-Bc)/mu_nought/total_mod_coils # Normalized to give B=1 on the axis.
 
     currents_part = []

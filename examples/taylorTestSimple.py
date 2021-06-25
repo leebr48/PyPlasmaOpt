@@ -20,7 +20,7 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
         dj0 = obj.dres
         djh = sum(dj0*h)
         djhnorm = np.linalg.norm(djh)
-        info('djh norm: ', djhnorm)
+        print('djh norm: ', djhnorm)
         if order == 1:
             shifts = [0, 1]
             weights = [-1, 1]
@@ -48,7 +48,7 @@ def taylor_test(obj, x, order=6, export=False, nrando=1):
             errvec.append(errnorm)
             info("%.6e, %.6e, %.6e", eps, err, errnorm)
         obj.update(x)
-        info("-----")
+        print("-----")
         plt.figure()
         yminind = np.argmin(errvec)
         refline = np.asarray([item**(order) for item in epsvec])
@@ -81,18 +81,18 @@ res = minimize(J_eval, x, jac=True, method='l-bfgs-b', tol=1e-20,
         options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
                callback=obj.callback) 
 
-info("%s" % res)
+print("%s" % res)
 xmin = res.x
-info('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+print('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
 
 
 multiplier = xmin[obj.current_dof_idxs[0]]/10
 randos = multiplier*np.random.rand(len(xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]]))
 xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]] += randos
-info('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+print('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
 
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
-info("Minimum distance = %f" % J_distance.min_dist())
+print("Minimum distance = %f" % J_distance.min_dist())
 
 iteration = len(obj.xiterates)-1
 Checkpoint(obj,iteration=iteration)

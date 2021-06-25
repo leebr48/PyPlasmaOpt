@@ -38,7 +38,7 @@ vmec_TCON0 = 2.00E+00
 vmec_NS_ARRAY = '9 29 49 99' #NOTE: could change first number to 3 VMEC is being difficult (but not preferred)
 vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12' #NOTE: could change first number to 1E-5 if VMEC is being difficult (but not preferred)
 vmec_LASYM = 'F'
-vmec_MPOL = 6 
+#vmec_MPOL is set with an argument below
 vmec_NTOR = 6
 vmec_LFREEB = 'T'
 vmec_NVACSKIP = 6
@@ -92,6 +92,7 @@ parser.add_argument("--ppp", type=int, default=None)
 parser.add_argument("--Nt_ma", type=int, default=None)
 parser.add_argument("--Nt_coils", type=int, default=None)
 parser.add_argument("--num_coils", type=int, default=None)
+parser.add_argument("--contNum", type=int, default=None)
 parser.add_argument("--nfp", type=int, default=None)
 parser.add_argument("--mmax", type=int, default=None)
 parser.add_argument("--nmax", type=int, default=None)
@@ -113,7 +114,8 @@ parser.add_argument("--noBoozRun", action='store_true', required=False, default=
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
 parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
-parser.add_argument("--largeMPOL", action='store_true', required=False, default=False) 
+parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
+parser.add_argument("--saveQFM", action='store_true', required=False, default=False)
 args = parser.parse_args() 
 
 def var_assign(load,arg):
@@ -141,8 +143,7 @@ def strVar_assign(load,arg):
     else:
         return arg
 
-if args.largeMPOL:
-    vmec_MPOL = 11
+vmec_MPOL = args.MPOL
 
 for sourceitem in args.sourcedir:
     sourcedir = str(pl.Path.cwd().joinpath(sourceitem).resolve())
@@ -157,6 +158,7 @@ for sourceitem in args.sourcedir:
     Nt_ma = int(var_assign('Nt_ma',args.Nt_ma))
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
     num_coils = int(var_assign('num_coils',args.num_coils))
+    contNum = int(var_assign('contNum',args.contNum))
     ppp = int(var_assign('ppp',args.ppp))
     volume = var_assign('qfm_volume',args.qfm_vol)
     nfp = int(var_assign('nfp',args.nfp))
@@ -187,7 +189,7 @@ for sourceitem in args.sourcedir:
         f.write('StellID: {:}'.format(str(stellID)))
 
     # Get the QFM surface
-    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID,oldFormat=oldFormat)
+    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,contNum=contNum,copies=1,stellID=stellID,oldFormat=oldFormat)
     ma = mas[0] #You should only be loading one stellarator at a time!
     unique_currents = unique_currents[0]
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
@@ -216,11 +218,10 @@ for sourceitem in args.sourcedir:
 
             paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
-            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
+            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir,stellID=stellID)
             optimizer.add_objective(objective,d_objective,1)
         
             print('Beginning QFM surface optimization - attempt %d.'%runs)
-            #(xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=1e-15,ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package=package,method='LBFGS')
             if package=='scipy':
                 xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
                 success = (result == 0) or (result == 2)
@@ -228,6 +229,8 @@ for sourceitem in args.sourcedir:
                 (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
                 success = result >= 0
             if (success):
+                if args.saveQFM:
+                    optimizer.saveGradOptInfo()
                 break
             else:
                 print('Optimization for given volume failed.')
@@ -298,7 +301,7 @@ for sourceitem in args.sourcedir:
         print('Poincare plot created.')
 
     # Load in coil and current information 
-    Ncoils = num_coils*nfp*2 #Not true in general, but fine in our case
+    Ncoils = (num_coils+contNum)*nfp*2 #Not true in general, but fine in our case
     currents = []
     names = []
     groups = []
