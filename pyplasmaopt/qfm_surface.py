@@ -5,13 +5,11 @@ from .biotsavart import BiotSavart
 from scipy.optimize import minimize, NonlinearConstraint
 
 class QfmSurface():
-
-    #def __init__(self, mmax, nmax, nfp, biotsavart, ntheta, nphi, volume):
+  
     def __init__(self, mmax, nmax, nfp, stellarator, ntheta, nphi, volume):
         self.mmax = mmax
         self.nmax = nmax
         self.nfp = nfp
-        #self.biotsavart = biotsavart
         self.biotsavart = BiotSavart(stellarator.coils, stellarator.currents)
         self.stellarator = stellarator
         self.mnmax,self.xm,self.xn = self.init_modes(mmax,nmax)

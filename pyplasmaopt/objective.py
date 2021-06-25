@@ -207,17 +207,18 @@ class BiotSavartQuasiSymmetricFieldDifferenceRenormalized():
         dBqs_by_dcoeffs = self.quasi_symmetric_field.dB_by_dcoeffs # ( (number of points on axis), (number of magnetic axis coefficients), (Bx,By,Bz) )
         
         # dJ/dmi bits
-        term1_part1 = 2 * np.einsum('ij,ikj,i->k',self.Bqs()-self.Bbs(),dBqs_by_dcoeffs,self.diff_arc_length()) # check
-        term1_part2 = - 2 * np.einsum('ij,ikj,imk,i->m',(self.Bqs()-self.Bbs()),self.dBbs_by_dX(),self.dgamma_by_dcoeff(),self.diff_arc_length())
+        term1_part1 = 2 * np.einsum('ij,ikj,i->k',self.Bqs()-self.Bbs(),dBqs_by_dcoeffs,self.diff_arc_length())
+        term1_part2 = -2 * np.einsum('ij,ikj,imk,i->m',(self.Bqs()-self.Bbs()),self.dBbs_by_dX(),self.dgamma_by_dcoeff(),self.diff_arc_length())
         term1 = term1_part1 + term1_part2
 
         term2 = np.einsum('i,i,imj,ij->m', 1/self.arc_length(), np.sum((self.Bqs()-self.Bbs())**2, axis=1), self.d2gamma_by_dphidcoeff(), self.dgamma_by_dphi())/self.arc_length().shape[0]
+
         dJ_dmi = term1 + term2
 
         # dK/dmi bits
         term1 = 2 * np.einsum('ij,ikj,imk,i->m',self.Bbs(),self.dBbs_by_dX(),self.dgamma_by_dcoeff(),self.diff_arc_length())
         term2 = np.einsum('i,i,imj,ij->m', 1/self.arc_length(), np.sum(self.Bbs()**2, axis=1), self.d2gamma_by_dphidcoeff(), self.dgamma_by_dphi()) /self.arc_length().shape[0]       
-        
+
         dK_dmi = term1 + term2
 
         # Chain rule

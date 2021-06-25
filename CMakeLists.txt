@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS "-O3")
 
 add_subdirectory(pybind11)
 set(XTENSOR_USE_OPENMP 0)
-
+set(XTENSOR_USE_TBB 0)
 
 
 pybind11_add_module(${PROJECT_NAME} 

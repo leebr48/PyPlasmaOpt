@@ -1,7 +1,7 @@
 """
 This script is used to compute a quadratic flux minimizing surface with 
-a given volume (default 1.0) for the input coils, as well as information
-about the coils. This all is then fed into VMEC. 
+a given volume for the input coils, as well as information about the coils.
+This all is then fed into VMEC and BOOZXFORM.  
 """
 
 # Options
@@ -38,7 +38,7 @@ vmec_TCON0 = 2.00E+00
 vmec_NS_ARRAY = '9 29 49 99' #NOTE: could change first number to 3 VMEC is being difficult (but not preferred)
 vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12' #NOTE: could change first number to 1E-5 if VMEC is being difficult (but not preferred)
 vmec_LASYM = 'F'
-vmec_MPOL = 11 #NOTE: can make this lower if VMEC is being difficult (but not preferred)
+#vmec_MPOL is set with an argument below
 vmec_NTOR = 6
 vmec_LFREEB = 'T'
 vmec_NVACSKIP = 6
@@ -92,6 +92,7 @@ parser.add_argument("--ppp", type=int, default=None)
 parser.add_argument("--Nt_ma", type=int, default=None)
 parser.add_argument("--Nt_coils", type=int, default=None)
 parser.add_argument("--num_coils", type=int, default=None)
+parser.add_argument("--contNum", type=int, default=None)
 parser.add_argument("--nfp", type=int, default=None)
 parser.add_argument("--mmax", type=int, default=None)
 parser.add_argument("--nmax", type=int, default=None)
@@ -105,13 +106,16 @@ parser.add_argument("--xtol_abs", type=float, default=None)
 parser.add_argument("--xtol_rel", type=float, default=None)
 parser.add_argument("--package", type=str, default=None)
 parser.add_argument("--method", type=str, default=None)
-parser.add_argument("--noPoincare", action='store_true', required=False, default=False) #These options shut down parts of the code, which run in the given order. 
+parser.add_argument("--noPoincare", action='store_true', required=False, default=False) # These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
 parser.add_argument("--noCompare", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozRun", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
 parser.add_argument("--stellID", type=int, default=0)
+parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
+parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
+parser.add_argument("--saveQFM", action='store_true', required=False, default=False)
 args = parser.parse_args() 
 
 def var_assign(load,arg):
@@ -139,6 +143,8 @@ def strVar_assign(load,arg):
     else:
         return arg
 
+vmec_MPOL = args.MPOL
+
 for sourceitem in args.sourcedir:
     sourcedir = str(pl.Path.cwd().joinpath(sourceitem).resolve())
 
@@ -152,6 +158,7 @@ for sourceitem in args.sourcedir:
     Nt_ma = int(var_assign('Nt_ma',args.Nt_ma))
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
     num_coils = int(var_assign('num_coils',args.num_coils))
+    contNum = int(var_assign('contNum',args.contNum))
     ppp = int(var_assign('ppp',args.ppp))
     volume = var_assign('qfm_volume',args.qfm_vol)
     nfp = int(var_assign('nfp',args.nfp))
@@ -166,6 +173,7 @@ for sourceitem in args.sourcedir:
     xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
     xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
     stellID = args.stellID
+    oldFormat = args.oldFormat
     package = strVar_assign('package',args.package)
     method = strVar_assign('method',args.method)
     try:
@@ -181,9 +189,9 @@ for sourceitem in args.sourcedir:
         f.write('StellID: {:}'.format(str(stellID)))
 
     # Get the QFM surface
-    #(unique_coils, ma, unique_currents) = get_ncsx_data(Nt_ma=Nt_ma, Nt_coils=Nt_coils, ppp=ppp)
-    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,copies=1,stellID=stellID)
-    ma = mas[0] #You should only be loading one stellarator at a time! 
+    (unique_coils, mas, unique_currents, eta_bar) = reload_stell(sourcedir=sourcedir,ppp=ppp,Nt_ma=Nt_ma,Nt_coils=Nt_coils,nfp=nfp,num_coils=num_coils,contNum=contNum,copies=1,stellID=stellID,oldFormat=oldFormat)
+    ma = mas[0] #You should only be loading one stellarator at a time!
+    unique_currents = unique_currents[0]
     stellarator = CoilCollection(unique_coils, unique_currents, nfp, True)
 
     bs = BiotSavart(stellarator.coils, stellarator.currents)
@@ -203,18 +211,16 @@ for sourceitem in args.sourcedir:
             paramsInitR = np.zeros((qfm.mnmax))
             paramsInitZ = np.zeros((qfm.mnmax))
             
-            #approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
             approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/magnetic_axis_radius) #Minor radius of a torus
-            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) #FIXME?
-            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) #FIXME
+            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius
+            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius
 
             paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
-            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir)
+            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir,stellID=stellID)
             optimizer.add_objective(objective,d_objective,1)
         
             print('Beginning QFM surface optimization - attempt %d.'%runs)
-            #(xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=1e-15,ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package=package,method='LBFGS')
             if package=='scipy':
                 xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
                 success = (result == 0) or (result == 2)
@@ -222,6 +228,9 @@ for sourceitem in args.sourcedir:
                 (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
                 success = result >= 0
             if (success):
+                if args.saveQFM:
+                    optimizer.saveGradOptInfo()
+                    np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[QfmSurface.volume]) #Overwrite old file if this portion of the code runs.
                 break
             else:
                 print('Optimization for given volume failed.')
@@ -230,7 +239,7 @@ for sourceitem in args.sourcedir:
         if not (success):
             print('QFM surface not found!')
             quit()
-    else:
+    else
         print('Loading QFM surface from xopt file.')
         xopt = old_xopt
         qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
@@ -244,10 +253,7 @@ for sourceitem in args.sourcedir:
 
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
-        #magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
-        #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp)
-        
-        max_thickness = min_rad #FIXME?
+        max_thickness = min_rad 
         
         runs = 1
         while runs < poincare_max_tries: 
@@ -281,8 +287,7 @@ for sourceitem in args.sourcedir:
         #plt.figure()
         fig,ax = plt.subplots()
         for i in range(nparticles):
-            #plt.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=0.01, marker='o') #FIXME s was 0.1
-            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) #FIXME s was 0.1
+            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) 
         Ruse = np.append(R,np.reshape(R[:,0],(R.shape[0],1)),axis=1)
         Zuse = np.append(Z,np.reshape(Z[:,0],(Z.shape[0],1)),axis=1)
         ax.plot(Ruse[0,:],Zuse[0,:])
@@ -293,7 +298,7 @@ for sourceitem in args.sourcedir:
         print('Poincare plot created.')
 
     # Load in coil and current information 
-    Ncoils = num_coils*nfp*2 #Not true in general, but fine in our case
+    Ncoils = (num_coils+contNum)*nfp*2 #Not true in general, but fine in our case
     currents = []
     names = []
     groups = []
@@ -539,7 +544,6 @@ for sourceitem in args.sourcedir:
                 plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)')
                 break
         plt.legend(fontsize=9,loc='best')
-        #plt.legend(fontsize=9,loc=2)
         for imode in range(nmodes):
             if np.abs(ixm_b[imode]) > max_m:
                 continue
@@ -558,7 +562,6 @@ for sourceitem in args.sourcedir:
             plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mycolor)
 
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
-        #plt.xlabel('Normalized toroidal flux')
         plt.title(r'Fourier Harmonics of $|B|$ in Boozer Coordinates')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
@@ -577,7 +580,6 @@ for sourceitem in args.sourcedir:
             
         plt.plot(s,QA_metric,marker='o')
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
-        #plt.xlabel('s')
         plt.ylabel('QA Metric')
         plt.ylim(bottom=0)
 

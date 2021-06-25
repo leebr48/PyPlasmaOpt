@@ -11,8 +11,9 @@ obj, args = get_objective()
 
 outdir = obj.outdir
 
-def taylor_test(obj, x, order=6, nrando=1):
+def taylor_test(obj, x, order=6, export=False, nrando=1):
     for randind in range(nrando):
+        #np.random.seed(1)
         h = np.random.rand(*(x.shape))
         np.savetxt(str(pl.Path(outdir).joinpath('taylor_test_direction-%d.txt'%randind)), h)
         obj.update(x)
@@ -47,7 +48,7 @@ def taylor_test(obj, x, order=6, nrando=1):
             errvec.append(errnorm)
             info("%.6e, %.6e, %.6e", eps, err, errnorm)
         obj.update(x)
-        info("-----")
+        print("-----")
         plt.figure()
         yminind = np.argmin(errvec)
         refline = np.asarray([item**(order) for item in epsvec])
@@ -80,16 +81,22 @@ res = minimize(J_eval, x, jac=True, method='l-bfgs-b', tol=1e-20,
         options={"maxiter": maxiter, "maxcor": memory, "ftol":1e-20, "gtol":1e-16, "maxfun":maxfun, "iprint":iprint, "maxls":maxls},
                callback=obj.callback) 
 
-info("%s" % res)
+print("%s" % res)
 xmin = res.x
+print('XMIN_currents before perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+
+
+multiplier = xmin[obj.current_dof_idxs[0]]/10
+randos = multiplier*np.random.rand(len(xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]]))
+xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]] += randos
+print('XMIN_currents after perturb: ',xmin[obj.current_dof_idxs[0]:obj.current_dof_idxs[1]])
+
 J_distance = MinimumDistance(obj.stellarator_group[0].coils, 0)
-info("Minimum distance = %f" % J_distance.min_dist())
+print("Minimum distance = %f" % J_distance.min_dist())
 
 iteration = len(obj.xiterates)-1
+Checkpoint(obj,iteration=iteration)
 np.savetxt(outdir + "xmin.txt", xmin)
-obj.plot('iteration-%04i.png' % iteration, iteration=iteration)
-if obj.qfm_weight > obj.ignore_tol:
-    obj.qfmPlot('qfmSurface',iteration)
 
 if args.Taylor:
-    taylor_test(obj, xmin, nrando=1)
+    taylor_test(obj, xmin, nrando=3)

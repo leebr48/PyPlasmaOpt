@@ -295,7 +295,6 @@ class QuasiSymmetricField(PropertyManager):
                     ) \
                     + dtterm_by_dcoeff[:, None] * t + tterm[:, None] * dt_by_dcoeff[:, i, :]
 
-    # FIXME: this function could be split up so that the sensitivity is only computed when actually necessary
     def solve_state(self):
         n = self.n
         l = self.magnetic_axis.incremental_arclength[:, 0]
@@ -360,7 +359,7 @@ class QuasiSymmetricField(PropertyManager):
                     soln = full_soln[0]
                     if full_soln[2] != 1:
                         print(full_soln[3])
-                        raise RuntimeError('fsolve failed to find a solution.') #FIXME - should this be active?
+                        raise RuntimeError('fsolve failed to find a solution.')
                     break
 
         self.__state[:] = soln[:]

@@ -10,9 +10,13 @@ build/
 build-mac/
 build-linux/
 output-*/
+out-*/
 *.so
 *.png
 *.txt
 *.npy
 *.log
 *.stat
+*.out
+*.err
+*.batch
