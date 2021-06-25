@@ -291,7 +291,7 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_co
         for i in range(copies):
             tot_old_current = np.sum(currents[i])
             currents_part = [(1-Bc)*current for current in currents[i]]
-            new_current = Bc*tot_old_current/newCont
+            new_current = -1*Bc*tot_old_current/newCont #-1 is a PPO sign convention
             [currents_part.append(new_current) for j in range(newCont)]
             new_currents.append(currents_part)
         currents = new_currents
