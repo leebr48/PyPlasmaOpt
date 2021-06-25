@@ -1,7 +1,7 @@
 """
 This script is used to compute a quadratic flux minimizing surface with 
-a given volume (default 1.0) for the input coils, as well as information
-about the coils. This all is then fed into VMEC. 
+a given volume for the input coils, as well as information about the coils.
+This all is then fed into VMEC and BOOZXFORM.  
 """
 
 # Options
@@ -211,10 +211,9 @@ for sourceitem in args.sourcedir:
             paramsInitR = np.zeros((qfm.mnmax))
             paramsInitZ = np.zeros((qfm.mnmax))
             
-            #approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/maj_rad) #Minor radius of a torus
             approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/magnetic_axis_radius) #Minor radius of a torus
-            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius #0.188077/np.sqrt(volume) 
-            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius #-0.188077/np.sqrt(volume) 
+            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius
+            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius
 
             paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
 
@@ -231,6 +230,7 @@ for sourceitem in args.sourcedir:
             if (success):
                 if args.saveQFM:
                     optimizer.saveGradOptInfo()
+                    np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[QfmSurface.volume]) #Overwrite old file if this portion of the code runs.
                 break
             else:
                 print('Optimization for given volume failed.')
@@ -239,7 +239,7 @@ for sourceitem in args.sourcedir:
         if not (success):
             print('QFM surface not found!')
             quit()
-    else:
+    else
         print('Loading QFM surface from xopt file.')
         xopt = old_xopt
         qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
@@ -253,9 +253,6 @@ for sourceitem in args.sourcedir:
 
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
-        #magnetic_axis_radius=np.sum(R[0,:])/np.size(R[0,:])
-        #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=20, batch_size=4, magnetic_axis_radius=magnetic_axis_radius, max_thickness=0.05, delta=0.01, steps_per_period=spp)
-        
         max_thickness = min_rad 
         
         runs = 1
@@ -547,7 +544,6 @@ for sourceitem in args.sourcedir:
                 plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)')
                 break
         plt.legend(fontsize=9,loc='best')
-        #plt.legend(fontsize=9,loc=2)
         for imode in range(nmodes):
             if np.abs(ixm_b[imode]) > max_m:
                 continue
@@ -566,7 +562,6 @@ for sourceitem in args.sourcedir:
             plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mycolor)
 
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
-        #plt.xlabel('Normalized toroidal flux')
         plt.title(r'Fourier Harmonics of $|B|$ in Boozer Coordinates')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
@@ -585,7 +580,6 @@ for sourceitem in args.sourcedir:
             
         plt.plot(s,QA_metric,marker='o')
         plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
-        #plt.xlabel('s')
         plt.ylabel('QA Metric')
         plt.ylim(bottom=0)
 
