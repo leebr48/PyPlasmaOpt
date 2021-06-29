@@ -137,4 +137,4 @@ setup(
     package_data={'pyplasmaopt': ['data/*', 'data/ncsx/*']},
     include_package_data=True,
     zip_safe=False,
-)
+) #FIXME add warnings?

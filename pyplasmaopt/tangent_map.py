@@ -3,6 +3,7 @@ import scipy.integrate
 import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
 from pyplasmaopt.logging import info
+import warnings #FIXME? 
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
@@ -134,6 +135,7 @@ class TangentMap():
 
         y0 = np.array([1,0,0,1])
         t_span = (0,2*np.pi)
+        warnings.filterwarnings("error",category=UserWarning) #FIXME?
         try:
             out = scipy.integrate.solve_ivp(self.rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
@@ -142,9 +144,10 @@ class TangentMap():
                                            max_step=self.max_step)
         except ValueError:
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
-        except UserWarning:
-            raise RuntimeError('solve_ivp failed due to repeated convergence issues')
-        
+        except UserWarning: #FIXME?
+            raise RuntimeError('solve_ivp failed due to convergence issues')
+        warnings.resetwarnings() #FIXME?
+
         if (out.status==0):
             return out.y, out.sol
         else:
