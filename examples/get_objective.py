@@ -43,14 +43,6 @@ def get_objective():
     parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
     parser.add_argument("--ntheta", type=int, default=20) # number of poloidal grid points for integration
     parser.add_argument("--nphi", type=int, default=20) # number of toroidal grid points for integration
-    parser.add_argument("--tik", type=float, default=0.)
-    parser.add_argument("--sob", type=float, default=0.)
-    parser.add_argument("--ftol_abs", type=float, default=1e-10)
-    parser.add_argument("--ftol_rel", type=float, default=1e-10)
-    parser.add_argument("--xtol_abs", type=float, default=1e-10)
-    parser.add_argument("--xtol_rel", type=float, default=1e-10)
-    parser.add_argument("--package", type=str, default='nlopt') # For QFM surface finder
-    parser.add_argument("--method", type=str, default='LBFGS') # For QFM surface finder 
     parser.add_argument("--renorm", action='store_true', default=False) # Use renormalized objective function
     parser.add_argument("--image", type=int, default=250) # How often images of stellarator should be written
     parser.add_argument("--kick", action='store_true', default=False) # Add a perturbation to the currents when loading flat coils
@@ -117,18 +109,9 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('nphi.txt')),[args.nphi])
     np.savetxt(str(pl.Path(outdir).joinpath('maj_rad.txt')),[args.maj_rad])
     np.savetxt(str(pl.Path(outdir).joinpath('min_rad.txt')),[args.min_rad])
-    np.savetxt(str(pl.Path(outdir).joinpath('ftol_abs.txt')),[args.ftol_abs])
-    np.savetxt(str(pl.Path(outdir).joinpath('ftol_rel.txt')),[args.ftol_rel])
-    np.savetxt(str(pl.Path(outdir).joinpath('xtol_abs.txt')),[args.xtol_abs])
-    np.savetxt(str(pl.Path(outdir).joinpath('xtol_rel.txt')),[args.xtol_rel])
     np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[args.qfm_vol]) #This will be overwritten if the QFM surface is included in the optimization. 
     np.savetxt(str(pl.Path(outdir).joinpath('contRad.txt')),[args.contRad])
 
-    with open(str(pl.Path(outdir).joinpath('package.txt')),'w') as f:
-        f.write(args.package)
-    with open(str(pl.Path(outdir).joinpath('method.txt')),'w') as f:
-        f.write(args.method)
-            
     xopt_rld = None
     coil_length_targets = None
     magnetic_axis_length_targets = None
@@ -184,12 +167,12 @@ def get_objective():
         stellarators, mas, iota_target, eta_bar=eta_bar, Nt_ma=args.Nt_ma,
         coil_length_targets=coil_length_targets, magnetic_axis_length_targets=magnetic_axis_length_targets,
         curvature_weight=args.curv, torsion_weight=args.tors,
-        tikhonov_weight=args.tik, arclength_weight=args.arclen, sobolev_weight=args.sob,
+        tikhonov_weight=0, arclength_weight=args.arclen, sobolev_weight=0,
         minimum_distance=args.min_dist, distance_weight=args.dist_wt,
         mode='deterministic', outdir=outdir, freezeCoils=args.frzCoils, freezeMod=args.frzMod,
         tanMap=args.tanMap, constrained=args.cons, keepAxis=args.keepAx, tanMap_axis=tanMap_axis,
-        iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, nfp=args.nfp,
-        qfm_volume=args.qfm_vol, ntheta=args.ntheta, nphi=args.nphi, ftol_abs=args.ftol_abs, ftol_rel=args.ftol_rel,
-        xtol_abs=args.xtol_abs,xtol_rel=args.xtol_rel,package=args.package,method=args.method,xopt_rld=xopt_rld,major_radius=args.maj_rad,
-        renorm=args.renorm,image_freq=args.image)
+        iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, nfp=args.nfp, 
+        qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, qfm_volume=args.qfm_vol, 
+        ntheta=args.ntheta, nphi=args.nphi, xopt_rld=xopt_rld,
+        renorm=args.renorm, image_freq=args.image)
     return obj, args

@@ -6,7 +6,7 @@ from scipy.optimize import minimize, NonlinearConstraint
 
 class QfmSurface():
   
-    def __init__(self, mmax, nmax, nfp, stellarator, ntheta, nphi, volume):
+    def __init__(self, mmax, nmax, nfp, stellarator, ntheta, nphi, volume, outdir='.', stellID=0):
         self.mmax = mmax
         self.nmax = nmax
         self.nfp = nfp
@@ -18,6 +18,8 @@ class QfmSurface():
         self.nphi = nphi
         self.thetas,self.phis,self.dtheta,self.dphi = self.init_grid(ntheta,nphi)
         self.volume_target = volume
+        self.outdir = outdir
+        self.stellID = stellID
 
     def init_modes(self,mmax,nmax):
         """
@@ -432,8 +434,6 @@ class QfmSurface():
         R = R[nax,:,:]
         N = N[nax,:,:]
 
-        # np.sqrt(R**2 * (dRdtheta**2 + dZdtheta**2)
-        #     + (dZdtheta*dRdphi - dZdphi*dRdtheta)**2)
         d_N = (  R * d_R * (dRdtheta**2 + dZdtheta**2)
                + R**2    * (dRdtheta*d_dRdtheta + dZdtheta*d_dZdtheta)
                + (dZdtheta*dRdphi   -  dZdphi*dRdtheta)
@@ -521,18 +521,9 @@ class QfmSurface():
         nZ = nZ[nax,:,:]
         N = N[nax,:,:]
 
-        """
-        NR = -dZdtheta * R
-        """
         d_NR = -dZdtheta * d_R - d_dZdtheta * R
-        """
-        NP =  dZdtheta * dRdphi - dZdphi * dRdtheta
-        """
         d_NP = dZdtheta * d_dRdphi - dZdphi * d_dRdtheta \
           + d_dZdtheta * dRdphi - d_dZdphi * dRdtheta
-        """
-        NZ =  dRdtheta * R
-        """
         d_NZ = d_dRdtheta * R + dRdtheta * d_R
 
         d_nR = d_NR/N - nR * d_N/N
@@ -770,18 +761,6 @@ class QfmSurface():
         Rbc = np.zeros((mnmax))
         Zbs = np.zeros((mnmax))
 
-        #R, Z = self.position(params)
-
-        #nax = np.newaxis
-        #xm = xm[:,nax,nax]
-        #xn = xn[:,nax,nax]
-        #thetas = self.thetas[nax,...]
-        #phis = self.phis[nax,...]
-        #angle = xm*thetas - xn*phis
-        #Rbc = np.sum(R*np.cos(angle),axis=(1,2))/np.sum(np.cos(angle)**2,axis=(1,2))
-        #Zbs = np.sum(Z*np.sin(angle),axis=(1,2))[1::]/np.sum(np.sin(angle[1::,:,:])**2,axis=(1,2))
-        #Zbs = np.concatenate(([0],Zbs),axis=0)
-
         if (mnmax < self.mnmax):
             for im in range(mnmax):
                 Rbc[im] = paramsR[(self.xm==xm[im])*(self.xn==xn[im])]
@@ -802,21 +781,7 @@ class QfmSurface():
 
         return Rbc, Zbs, xn, xm
 
-    def Cyl_to_Cart(self,R):
-        """
-        Computes X and Y from R.
-
-        Inputs:
-            R (as from the position function)
-        Outputs;
-            X,Y
-        """
-        X = R * np.cos(self.phis)
-        Y = R * np.sin(self.phis)
-
-        return X,Y
-
-    def qfm_metric(self,paramsInit=None,full=True,outdir='.',stellID=0,lam=1,
+    def qfm_metric(self,paramsInit=None,full=True,lam=10,
         tol=1e-9,maxiter=10000,**kwargs):
         """
         Computes minimum of quadratic flux function beginning with initial guess
@@ -873,7 +838,6 @@ class QfmSurface():
 
         if (success):
             self.paramsPrev = xopt
-            np.savetxt(str(pl.Path(outdir).joinpath('xopt_{:}.txt'.format(stellID))),xopt)
             return fopt
         else:
             raise RuntimeError('QFM solver not successful! Result = %d'%res.status)
@@ -983,3 +947,72 @@ class QfmSurface():
             - (f/normalization)*np.sum(N * deltaB2,axis=0))
         res = self.stellarator.reduce_current_derivatives(res)
         return res
+
+    def Cyl_to_Cart(self,R):
+        """
+        Computes X and Y from R.
+
+        Inputs:
+            R (as from the position function)
+        Outputs;
+            X,Y
+        """
+        X = R * np.cos(self.phis)
+        Y = R * np.sin(self.phis)
+
+        return X,Y
+    
+    def ParamsInit(self,ma):
+        '''
+        Calculates an initial guess for the QFM surface. 
+
+        Inputs:
+            ma: instance of StellaratorSymmetricCylindricalFourierCurve - 
+                this should be the magnetic axis that is enclosed by the 
+                QFM surface
+        Outputs:
+            paramsInit (1D array): surface Fourier parameters to be fed 
+            into the paramsInit kwarg in qfm_metric
+
+        '''
+        paramsInitR = np.zeros((self.mnmax))
+        paramsInitZ = np.zeros((self.mnmax))
+
+        major_radius = ma.get_dofs()[0]
+        Nt_ma = ma.order
+
+        approx_plasma_minor_radius = 1/np.pi*np.sqrt(self.volume_target/2/major_radius) # Minor radius of a torus
+        paramsInitR[(self.xm==1)*(self.xn==0)] = approx_plasma_minor_radius
+        paramsInitZ[(self.xm==1)*(self.xn==0)] = -1*approx_plasma_minor_radius
+
+        for im in range(Nt_ma+1):
+            paramsInitR[(self.xm==0)*(self.xn==im*self.nfp)] = ma.get_dofs()[im]
+        for im in range(1,Nt_ma+1):
+            paramsInitZ[(self.xm==0)*(self.xn==im*self.nfp)] = -1*ma.get_dofs()[Nt_ma+im]
+
+        paramsInit = np.hstack((paramsInitR,paramsInitZ))
+
+        return paramsInit
+
+    def DetermineFull(self,params):
+        '''
+        Determine if an array of surface Fourier coefficients contains
+            the R00 parameter (relevant for other parts of this code)
+        Inputs: 
+            params (1D array): surface Fourier parameters
+        Outputs:
+            full (bool): True if R00 is included, False otherwise
+        '''
+        if len(params) == (2*self.mnmax-1):
+            full = False
+        elif len(params) == (2*self.mnmax):
+            full = True
+        else:
+            raise AssertionError('Params is the wrong length!')
+        return full
+    
+    def SaveState(self):
+        '''
+        Saves surface Fourier parameters to a text file.
+        '''
+        np.savetxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(self.stellID))),self.paramsPrev)

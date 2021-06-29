@@ -26,9 +26,9 @@ class NearAxisQuasiSymmetryObjective():
                  length_scale_perturb=0.2, mode="deterministic",
                  outdir="output/", seed=1, freezeCoils=False, freezeMod=False,
                  tanMap=False, constrained=True, keepAxis=True, tanMap_axis=None,
-                 iota_weight=1, quasisym_weight=1, qfm_weight=0,
-                 qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, nfp=3, ntheta=20, nphi=20, 
-                 ftol_abs=1e-15, ftol_rel=1e-15,xtol_abs=1e-15,xtol_rel=1e-15,package='nlopt',method='LBFGS',xopt_rld=None,major_radius=1.4,
+                 iota_weight=1, quasisym_weight=1, nfp=3, 
+                 qfm_weight=0, qfm_max_tries=5, qfm_volume=1, mmax=3, nmax=3, 
+                 ntheta=20, nphi=20, xopt_rld=None,
                  renorm=False, image_freq=250, qs_N=0, res_axis_weight=1000):
         if (tanMap is True) and (keepAxis is False):
             raise NotImplementedError('New derivatives and logic switches are required to use keepAxis=False!')
@@ -175,13 +175,6 @@ class NearAxisQuasiSymmetryObjective():
         self.nfp = nfp
         self.ntheta = ntheta
         self.nphi = nphi
-        self.ftol_abs = ftol_abs 
-        self.ftol_rel = ftol_rel
-        self.xtol_abs = xtol_abs
-        self.xtol_rel = xtol_rel
-        self.package = package
-        self.method = method
-        self.major_radius = major_radius
         self.xopt_rld = xopt_rld
         self.ignore_tol = 0 #Cutoff weight for determining if res and dres contributions will be computed in the update() function
         self.image_freq = image_freq
@@ -339,8 +332,9 @@ class NearAxisQuasiSymmetryObjective():
         iteration = len(self.xiterates)
         if self.qfm_weight > self.ignore_tol:
             if (self.xopt_rld is not None) and (not self.initial_qfm_opt):
-                self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
-                fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=self.xopt_rld[i],outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume, outdir=self.outdir, stellID=i) for i in self.stellList]
+                self.qfm_full = [self.qfm_group[i].DetermineFull(xopt_rld[i]) for i in self.stellList]
+                fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=self.xopt_rld[i],full=self.qfm_full[i]) for i in self.stellList]
                 self.res10 = sum(fopts)
                 info("QFM surface(s) reloaded from previous run.")
                 self.initial_qfm_opt = True
@@ -348,21 +342,15 @@ class NearAxisQuasiSymmetryObjective():
                 runs = 1
                 success = False
                 while runs < self.qfm_max_tries:
-                    self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume) for i in self.stellList]
+                    self.qfm_group = [QfmSurface(self.mmax, self.nmax, self.nfp, self.stellarator_group[i], self.ntheta, self.nphi, self.qfm_volume, outdir=self.outdir, stellID=i) for i in self.stellList]
                     
-                    # Initialize parameters - circular cross section torus
-                    paramsInitR = np.zeros((self.qfm_group[0].mnmax))
-                    paramsInitZ = np.zeros((self.qfm_group[0].mnmax))
-                    
-                    approx_plasma_minor_radius = 1/np.pi*np.sqrt(self.qfm_volume/2/self.major_radius) # Minor radius of a torus
-                    paramsInitR[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = approx_plasma_minor_radius
-                    paramsInitZ[(self.qfm_group[0].xm==1)*(self.qfm_group[0].xn==0)] = -1*approx_plasma_minor_radius
-                    
-                    paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
+                    # Initialize parameters
+                    paramsInit = [self.qfm_group[i].ParamsInit(self.ma_group[i]) for i in self.stellList]
+                    self.qfm_full = [self.qfm_group[i].DetermineFull(paramsInit[i]) for i in self.stellList]
 
                     info('Beginning QFM surface optimization - attempt %d.'%runs)
                     try:
-                        fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=paramsInit,outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList]
+                        fopts = [self.qfm_weight*self.qfm_group[i].qfm_metric(paramsInit=paramsInit[i],full=self.qfm_full[i]) for i in self.stellList]
                         success = True
                         self.res10 = sum(fopts)
                         break
@@ -377,10 +365,10 @@ class NearAxisQuasiSymmetryObjective():
                 np.savetxt(str(pl.Path(self.outdir).joinpath('qfm_volume.txt')),[self.qfm_volume]) #Overwrite old file if this portion of the code runs. 
                 self.initial_qfm_opt = True
             else:
-                self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(outdir=self.outdir,stellID=i,ftol_abs=self.ftol_abs,ftol_rel=self.ftol_rel,xtol_abs=self.xtol_abs,xtol_rel=self.xtol_rel,package=self.package,method=self.method) for i in self.stellList])            
+                self.res10 = sum([self.qfm_weight*self.qfm_group[i].qfm_metric(full=self.qfm_full[i]) for i in self.stellList])
             if not self.freezeCoils:
-                self.drescoil += np.sum(([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_coeffs() for i in self.stellList]),axis=0)
-            self.drescurrent += np.concatenate(([self.current_fak*self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_currents() for i in self.stellList])) 
+                self.drescoil += np.sum(([self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_coeffs(full=self.qfm_full[i]) for i in self.stellList]),axis=0)
+            self.drescurrent += np.concatenate(([self.current_fak*self.qfm_weight*self.qfm_group[i].d_qfm_metric_d_coil_currents(full=self.qfm_full[i]) for i in self.stellList]))
         else:
             self.res10 = 0
 
@@ -551,9 +539,12 @@ class NearAxisQuasiSymmetryObjective():
         import matplotlib.pyplot as plt
         for i in self.stellList:
             xopt = np.loadtxt(str(pl.Path(self.outdir).joinpath('xopt_{:}.txt'.format(i))))
-            R,Z = self.qfm_group[i].position(xopt)
+            qfm_full = self.qfm_group[i].DetermineFull(xopt)
+            R,Z = self.qfm_group[i].position(xopt,full=qfm_full)
             plt.figure()
-            plt.plot(R[0,:],Z[0,:])
+            Ruse = np.append(R,np.reshape(R[:,0],(R.shape[0],1)),axis=1)
+            Zuse = np.append(Z,np.reshape(Z[:,0],(Z.shape[0],1)),axis=1)
+            plt.plot(Ruse[0,:],Zuse[0,:])
             plt.xlabel(r'$R$ (m)')
             plt.ylabel(r'$Z$ (m)')
             plt.savefig(str(pl.Path(self.outdir).joinpath(title+'_%i-%04i.png'%(i,iteration))),bbox_inches='tight')
@@ -643,308 +634,3 @@ class NearAxisQuasiSymmetryObjective():
         eye_top = np.array([0,0,np.linalg.norm(eye_angled)])
         fig.update_layout(scene_camera = dict(eye = dict(x=eye_top[0],y=eye_top[1],z=eye_top[2])))
         fig.write_image(str(pl.Path(self.outdir).joinpath('plotly_top_'+filename)))
-
-class SimpleNearAxisQuasiSymmetryObjective():
-
-    def __init__(self, stellarator, ma, iota_target, eta_bar=-2.25,
-                 coil_length_target=None, magnetic_axis_length_target=None,
-                 curvature_weight=0., torsion_weight=0., tikhonov_weight=0., arclength_weight=0., sobolev_weight=0.,
-                 minimum_distance=0.04, distance_weight=0.,
-                 outdir="output/"
-                 ):
-        self.stellarator = stellarator
-        self.ma = ma
-        bs = BiotSavart(stellarator.coils, stellarator.currents)
-        self.biotsavart = bs
-        self.biotsavart.set_points(self.ma.gamma)
-        qsf = QuasiSymmetricField(eta_bar, ma)
-        self.qsf = qsf
-        sigma = qsf.sigma
-        iota = qsf.iota
-
-        self.J_BSvsQS          = BiotSavartQuasiSymmetricFieldDifference(qsf, bs)
-        coils = stellarator._base_coils
-        self.J_coil_lengths    = [CurveLength(coil) for coil in coils]
-        self.J_axis_length     = CurveLength(ma)
-        if coil_length_target is not None:
-            self.coil_length_targets = [coil_length_target for coil in coils]
-        else:
-            self.coil_length_targets = [J.J() for J in self.J_coil_lengths]
-        self.magnetic_axis_length_target = magnetic_axis_length_target or self.J_axis_length.J()
-
-        self.J_coil_curvatures = [CurveCurvature(coil, length) for (coil, length) in zip(coils, self.coil_length_targets)]
-        self.J_coil_torsions   = [CurveTorsion(coil, p=4) for coil in coils]
-        self.J_sobolev_weights = [SobolevTikhonov(coil, weights=[1., .1, .1, .1]) for coil in coils] + [SobolevTikhonov(ma, weights=[1., .1, .1, .1])]
-        self.J_arclength_weights = [UniformArclength(coil, length) for (coil, length) in zip(coils, self.coil_length_targets)]
-        self.J_distance = MinimumDistance(stellarator.coils, minimum_distance)
-
-        self.iota_target                 = iota_target
-        self.curvature_weight             = curvature_weight
-        self.torsion_weight               = torsion_weight
-        self.num_ma_dofs = len(ma.get_dofs())
-        self.current_fak = 1./(4 * pi * 1e-7)
-
-        self.ma_dof_idxs = (1, 1+self.num_ma_dofs)
-        self.current_dof_idxs = (self.ma_dof_idxs[1], self.ma_dof_idxs[1] + len(stellarator.get_currents()))
-        self.coil_dof_idxs = (self.current_dof_idxs[1], self.current_dof_idxs[1] + len(stellarator.get_dofs()))
-
-        self.x0 = np.concatenate(([qsf.eta_bar], self.ma.get_dofs(), self.stellarator.get_currents()/self.current_fak, self.stellarator.get_dofs()))
-        self.x = self.x0.copy()
-        self.sobolev_weight = sobolev_weight
-        self.tikhonov_weight = tikhonov_weight
-        self.arclength_weight = arclength_weight
-        self.distance_weight = distance_weight
-
-        self.xiterates = []
-        self.Jvals_individual = []
-        self.Jvals = []
-        self.dJvals = []
-        self.outdir = outdir
-
-    def set_dofs(self, x):
-        x_etabar = x[0]
-        x_ma = x[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]]
-        x_current = x[self.current_dof_idxs[0]:self.current_dof_idxs[1]]
-        x_coil = x[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
-        self.t = x[-1]
-
-        self.qsf.eta_bar = x_etabar
-        self.ma.set_dofs(x_ma)
-        self.biotsavart.set_points(self.ma.gamma)
-        self.stellarator.set_currents(self.current_fak * x_current)
-        self.stellarator.set_dofs(x_coil)
-
-        self.biotsavart.clear_cached_properties()
-        self.qsf.clear_cached_properties()
-
-    def update(self, x, compute_derivative=True):
-        self.x[:] = x
-        J_BSvsQS          = self.J_BSvsQS
-        J_coil_lengths    = self.J_coil_lengths
-        J_axis_length     = self.J_axis_length
-        J_coil_curvatures = self.J_coil_curvatures
-        J_coil_torsions   = self.J_coil_torsions
-
-        iota_target                 = self.iota_target
-        magnetic_axis_length_target = self.magnetic_axis_length_target
-        curvature_weight             = self.curvature_weight
-        torsion_weight               = self.torsion_weight
-        qsf = self.qsf
-
-        self.set_dofs(x)
-
-        self.dresetabar  = np.zeros(1)
-        self.dresma      = np.zeros(self.ma_dof_idxs[1]-self.ma_dof_idxs[0])
-        self.drescurrent = np.zeros(self.current_dof_idxs[1]-self.current_dof_idxs[0])
-        self.drescoil    = np.zeros(self.coil_dof_idxs[1]-self.coil_dof_idxs[0])
-
-
-        """ Objective values """
-
-        self.res1        = 0.5 * J_BSvsQS.J_L2() + 0.5 * J_BSvsQS.J_H1()
-        if compute_derivative:
-            self.dresetabar  += 0.5 * J_BSvsQS.dJ_L2_by_detabar() + 0.5 * J_BSvsQS.dJ_H1_by_detabar()
-            self.dresma      += 0.5 * J_BSvsQS.dJ_L2_by_dmagneticaxiscoefficients() + 0.5 * J_BSvsQS.dJ_H1_by_dmagneticaxiscoefficients()
-            self.drescoil    += 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_L2_by_dcoilcoefficients()) \
-                + 0.5 * self.stellarator.reduce_coefficient_derivatives(J_BSvsQS.dJ_H1_by_dcoilcoefficients())
-            self.drescurrent += 0.5 * self.current_fak * (
-                self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_L2_by_dcoilcurrents()) + self.stellarator.reduce_current_derivatives(J_BSvsQS.dJ_H1_by_dcoilcurrents())
-            )
-
-        self.res2      = 0.5 * sum( (1/l)**2 * (J2.J() - l)**2 for (J2, l) in zip(J_coil_lengths, self.coil_length_targets))
-        if compute_derivative:
-            self.drescoil += self.stellarator.reduce_coefficient_derivatives([
-                (1/l)**2 * (J_coil_lengths[i].J()-l) * J_coil_lengths[i].dJ_by_dcoefficients() for (i, l) in zip(list(range(len(J_coil_lengths))), self.coil_length_targets)])
-
-        self.res3    = 0.5 * (1/magnetic_axis_length_target)**2 * (J_axis_length.J() - magnetic_axis_length_target)**2
-        if compute_derivative:
-            self.dresma += (1/magnetic_axis_length_target)**2 * (J_axis_length.J()-magnetic_axis_length_target) * J_axis_length.dJ_by_dcoefficients()
-
-        self.res4        = 0.5 * (1/iota_target**2) * (qsf.iota-iota_target)**2
-        if compute_derivative:
-            self.dresetabar += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_detabar[:,0]
-            self.dresma     += (1/iota_target**2) * (qsf.iota - iota_target) * qsf.diota_by_dcoeffs[:, 0]
-
-        if curvature_weight > 0:
-            self.res5      = sum(curvature_weight * J.J() for J in J_coil_curvatures)
-            if compute_derivative:
-                self.drescoil += self.curvature_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_curvatures])
-        else:
-            self.res5 = 0
-        if torsion_weight > 0:
-            self.res6      = sum(torsion_weight * J.J() for J in J_coil_torsions)
-            if compute_derivative:
-                self.drescoil += self.torsion_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in J_coil_torsions])
-        else:
-            self.res6 = 0
-
-        if self.sobolev_weight > 0:
-            self.res7 = sum(self.sobolev_weight * J.J() for J in self.J_sobolev_weights)
-            if compute_derivative:
-                self.drescoil += self.sobolev_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_sobolev_weights[:-1]])
-                self.dresma += self.sobolev_weight * self.J_sobolev_weights[-1].dJ_by_dcoefficients()
-        else:
-            self.res7 = 0
-
-        if self.arclength_weight > 0:
-            self.res8 = sum(self.arclength_weight * J.J() for J in self.J_arclength_weights)
-            if compute_derivative:
-                self.drescoil += self.arclength_weight * self.stellarator.reduce_coefficient_derivatives([J.dJ_by_dcoefficients() for J in self.J_arclength_weights])
-        else:
-            self.res8 = 0
-
-        if self.distance_weight > 0:
-            self.res9 = self.distance_weight * self.J_distance.J()
-            if compute_derivative:
-                self.drescoil += self.distance_weight * self.stellarator.reduce_coefficient_derivatives(self.J_distance.dJ_by_dcoefficients())
-        else:
-            self.res9 = 0
-
-        if self.tikhonov_weight > 0:
-            self.res_tikhonov_weight = self.tikhonov_weight * np.sum((x-self.x0)**2)
-            if compute_derivative:
-                dres_tikhonov_weight = self.tikhonov_weight * 2. * (x-self.x0)
-                self.dresetabar += dres_tikhonov_weight[0:1]
-                self.dresma += dres_tikhonov_weight[self.ma_dof_idxs[0]:self.ma_dof_idxs[1]]
-                self.drescurrent += dres_tikhonov_weight[self.current_dof_idxs[0]:self.current_dof_idxs[1]]
-                self.drescoil += dres_tikhonov_weight[self.coil_dof_idxs[0]:self.coil_dof_idxs[1]]
-        else:
-            self.res_tikhonov_weight = 0
-
-        # self.Jvals_individual.append([])
-        Jvals_individual = [self.res1, self.res2, self.res3, self.res4, self.res5, self.res6, self.res7, self.res8, self.res9, self.res_tikhonov_weight]
-        self.res = sum(Jvals_individual)
-
-        if compute_derivative:
-            self.dres = np.concatenate((
-                self.dresetabar, self.dresma,
-                self.drescurrent, self.drescoil
-            ))
-
-    def clear_history(self):
-        self.xiterates = []
-        self.Jvals_individual = []
-        self.Jvals = []
-        self.dJvals = []
-
-    def callback(self, x, verbose=True):
-        self.update(x)# assert np.allclose(self.x, x)
-        self.Jvals.append(self.res)
-        norm = np.linalg.norm
-        self.dJvals.append((
-            norm(self.dres), norm(self.dresetabar), norm(self.dresma), norm(self.drescurrent), norm(self.drescoil)
-        ))
-        self.xiterates.append(x.copy())
-
-        iteration = len(self.xiterates)-1
-        info("################################################################################")
-        info(f"Iteration {iteration}")
-        norm = np.linalg.norm
-        info(f"Objective value:         {self.res:.6e}")
-        # info(f"Objective values:        {self.res1:.6e}, {self.res2:.6e}, {self.res3:.6e}, {self.res4:.6e}, {self.res5:.6e}, {self.res6:.6e}, {self.res7:.6e}, {self.res8:.6e}, {self.res9:.6e}, {self.res_tikhonov_weight:.6e}")
-        info(f"Objective gradients:     {norm(self.dresetabar):.6e}, {norm(self.dresma):.6e}, {norm(self.drescurrent):.6e}, {norm(self.drescoil):.6e}")
-
-        max_curvature  = max(np.max(c.kappa) for c in self.stellarator._base_coils)
-        mean_curvature = np.mean([np.mean(c.kappa) for c in self.stellarator._base_coils])
-        max_torsion    = max(np.max(np.abs(c.torsion)) for c in self.stellarator._base_coils)
-        mean_torsion   = np.mean([np.mean(np.abs(c.torsion)) for c in self.stellarator._base_coils])
-        info(f"Curvature Max: {max_curvature:.3e}; Mean: {mean_curvature:.3e}")
-        info(f"Torsion   Max: {max_torsion:.3e}; Mean: {mean_torsion:.3e}")
-
-    def plot(self, backend='plotly'):
-        if backend == 'matplotlib':
-            import matplotlib
-            import matplotlib.pyplot as plt
-            from mpl_toolkits.mplot3d import Axes3D
-            fig = plt.figure()
-            ax = fig.add_subplot(1, 1, 1, projection="3d")
-            for i in range(0, len(self.stellarator.coils)):
-                ax = self.stellarator.coils[i].plot(ax=ax, show=False, color=["b", "g", "r", "c", "m", "y"][i%len(self.stellarator._base_coils)])
-            self.ma.plot(ax=ax, show=False, closed_loop=False)
-            ax.view_init(elev=90., azim=0)
-            ax.set_xlim(-2, 2)
-            ax.set_ylim(-2, 2)
-            ax.set_zlim(-1, 1)
-            plt.show()
-        elif backend == 'plotly':
-            stellarator = self.stellarator
-            coils = stellarator.coils
-            ma = self.ma
-            gamma = coils[0].gamma
-            N = gamma.shape[0]
-            l = len(stellarator.coils)
-            data = np.zeros((l*(N+1), 4))
-            labels = [None for i in range(l*(N+1))]
-            for i in range(l):
-                data[(i*(N+1)):((i+1)*(N+1)-1),:-1] = stellarator.coils[i].gamma
-                data[((i+1)*(N+1)-1),:-1] = stellarator.coils[i].gamma[0, :]
-                data[(i*(N+1)):((i+1)*(N+1)),-1] = i
-                for j in range(i*(N+1), (i+1)*(N+1)):
-                    labels[j] = 'Coil %i ' % stellarator.map[i]
-            N = ma.gamma.shape[0]
-            ma_ = np.zeros((ma.nfp*N+1, 4))
-            ma0 = ma.gamma.copy()
-            theta = 2*np.pi/ma.nfp
-            rotmat = np.asarray([
-                [cos(theta), -sin(theta), 0],
-                [sin(theta), cos(theta), 0],
-                [0, 0, 1]]).T
-
-            for i in range(ma.nfp):
-                ma_[(i*N):(((i+1)*N)), :-1] = ma0
-                ma0 = ma0 @ rotmat
-            ma_[-1, :-1] = ma.gamma[0,:]
-            ma_[:, -1] = -1
-            data = np.vstack((data, ma_))
-            for i in range(ma_.shape[0]):
-                labels.append('Magnetic Axis')
-            import plotly.express as px
-            fig = px.line_3d(x=data[:,0], y=data[:,1], z=data[:,2],
-                             color=labels, line_group=data[:,3].astype(np.int))
-            fig.show()
-        else:
-            raise NotImplementedError('backend must be either matplotlib or plotly')
-
-def plot_stellarator(stellarator, axis=None, extra_data=None):
-    coils = stellarator.coils
-    gamma = coils[0].gamma
-    N = gamma.shape[0]
-    l = len(stellarator.coils)
-    data = np.zeros((l*(N+1), 3))
-    labels = [None for i in range(l*(N+1))]
-    groups = [None for i in range(l*(N+1))]
-    for i in range(l):
-        data[(i*(N+1)):((i+1)*(N+1)-1), :] = stellarator.coils[i].gamma
-        data[((i+1)*(N+1)-1), :] = stellarator.coils[i].gamma[0, :]
-        for j in range(i*(N+1), (i+1)*(N+1)):
-            labels[j] = 'Coil %i ' % stellarator.map[i]
-            groups[j] = i+1
-
-    if axis is not None:
-        N = axis.gamma.shape[0]
-        ma_ = np.zeros((axis.nfp*N+1, 3))
-        ma0 = axis.gamma.copy()
-        theta = 2*np.pi/axis.nfp
-        rotmat = np.asarray([
-            [cos(theta), -sin(theta), 0],
-            [sin(theta), cos(theta), 0],
-            [0, 0, 1]]).T
-
-        for i in range(axis.nfp):
-            ma_[(i*N):(((i+1)*N)), :] = ma0
-            ma0 = ma0 @ rotmat
-        ma_[-1, :] = axis.gamma[0, :]
-        data = np.vstack((data, ma_))
-        for i in range(ma_.shape[0]):
-            labels.append('Magnetic Axis')
-            groups.append(0)
-
-    if extra_data is not None:
-        for i, extra in enumerate(extra_data):
-            labels += ['Extra %i' % i ] * extra.shape[0]
-            groups += [-1-i] * extra.shape[0]
-            data = np.vstack((data, extra)) 
-    import plotly.express as px
-    fig = px.line_3d(x=data[:,0], y=data[:,1], z=data[:,2],
-                     color=labels, line_group=groups)
-    fig.show()
