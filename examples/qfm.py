@@ -67,17 +67,17 @@ booz_QAplot_name = 'booz_QA_plot'
 from pyplasmaopt import *
 import numpy as np
 from scipy.io import netcdf
-from pyplasmaopt.qfm_surface import QfmSurface
 import argparse 
 import os 
 import pathlib as pl 
 import sys
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D 
-from pyplasmaopt.poincareplot import compute_field_lines
 from coilpy import * 
 import subprocess as sp
-sys.path.append('/home/leebr48/ALPOpt/')
+with open(str(pl.Path.cwd().joinpath('ALPOpt_dir.txt')),'r') as f:
+        ALPOpt_dir = f.read().strip()
+sys.path.append(ALPOpt_dir)
 from vmec_input import init_modes 
 from vmec_output import VmecOutput
 

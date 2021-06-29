@@ -37,14 +37,8 @@ and then depending on your platform run
 or 
     make pip-linux
 
-Finally, you may need to run the following command to be able to "import pyplasmaopt" in scripts outside of this directory as the "make" command above does not seem to always function properly: 
-
-    pip -e install . 
-
 To check the installation
 
     pytest tests/
 
-You can also run scripts in the "examples" folder to be certain that all the package dependencies are installed. 
-
-Note: if you are installing and running PyPlasmaOpt on different processors, you may get an error. If this happens, try deleting "-march=native" from CMakeLists.txt and setup.py and rebuilding PyPlasmaOpt.
+Note: To use the postprocessing script (`qfm.py`) you will need to download [ALPOpt][https://github.com/ejpaul/ALPOpt], then create a file in the same directory as `qfm.py` entitled `ALPOpt_dirs.txt`. In this file, paste a text string containing the absolute address of the ALPOpt directory, such as `/home/your_username/ALPOpt`. You will also need to install [STELLOPT][https://github.com/PrincetonUniversity/STELLOPT] as instructed in its repository.
