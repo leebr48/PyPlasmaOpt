@@ -10,7 +10,6 @@ image_filetype = 'pdf' #Choose something that MatPlotLib can handle.
 font_size = 18
 ## Poincare plot
 qfm_max_tries = 5
-#package = 'nlopt' #Choose 'nlopt' or 'scipy'
 poincare_max_tries = 5
 nperiods = 700 #200 
 batch_size = 4
@@ -18,7 +17,9 @@ delta = 0.01
 spp = 120
 marker_size = 0.01 #0.04
 marker_symbol = '.'
-poincare_plot_name = 'poincare_w_qfm'
+poincare_w_qfm_name = 'poincare_w_qfm'
+poincare_w_vmec_name = 'poincare_w_vmec'
+poincare_w_both_name = 'poincare_w_both' 
 ## CoilPy
 coils_file_suffix = 'pyplasmaopt'
 ## MAKEGRID
@@ -66,7 +67,6 @@ booz_QAplot_name = 'booz_QA_plot'
 from pyplasmaopt import *
 import numpy as np
 from scipy.io import netcdf
-from pyplasmaopt.grad_optimizer import GradOptimizer
 from pyplasmaopt.qfm_surface import QfmSurface
 import argparse 
 import os 
@@ -100,12 +100,6 @@ parser.add_argument("--ntheta", type=int, default=None)
 parser.add_argument("--nphi", type=int, default=None)
 parser.add_argument("--maj_rad", type=float, default=None)
 parser.add_argument("--min_rad", type=float, default=None)
-parser.add_argument("--ftol_abs", type=float, default=None)
-parser.add_argument("--ftol_rel", type=float, default=None)
-parser.add_argument("--xtol_abs", type=float, default=None)
-parser.add_argument("--xtol_rel", type=float, default=None)
-parser.add_argument("--package", type=str, default=None)
-parser.add_argument("--method", type=str, default=None)
 parser.add_argument("--noPoincare", action='store_true', required=False, default=False) # These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
@@ -125,19 +119,6 @@ def var_assign(load,arg):
             loaded = np.loadtxt(str(pl.Path(sourcedir).joinpath(fileToLoad)))
             return loaded
         except IOError:
-            print('File {:} not found, you must specify this parameter as an argument!'.format(fileToLoad))
-            quit()
-    else:
-        return arg
-
-def strVar_assign(load,arg):
-    if arg == None:
-        try: 
-            fileToLoad = '{:}.txt'.format(load)
-            with open(str(pl.Path(sourcedir).joinpath(fileToLoad)),'r') as f:
-                loaded = f.read()
-            return loaded
-        except FileNotFoundError:
             print('File {:} not found, you must specify this parameter as an argument!'.format(fileToLoad))
             quit()
     else:
@@ -168,14 +149,8 @@ for sourceitem in args.sourcedir:
     nphi = int(var_assign('nphi',args.nphi))
     maj_rad = float(var_assign('maj_rad',args.maj_rad))
     min_rad = float(var_assign('min_rad',args.min_rad))
-    ftol_abs = float(var_assign('ftol_abs',args.ftol_abs))
-    ftol_rel = float(var_assign('ftol_rel',args.ftol_rel))
-    xtol_abs = float(var_assign('xtol_abs',args.xtol_abs))
-    xtol_rel = float(var_assign('xtol_rel',args.xtol_rel))
     stellID = args.stellID
     oldFormat = args.oldFormat
-    package = strVar_assign('package',args.package)
-    method = strVar_assign('method',args.method)
     try:
         old_xopt = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
         volume = np.loadtxt(str(pl.Path(sourcedir).joinpath('qfm_volume.txt')))
@@ -203,53 +178,38 @@ for sourceitem in args.sourcedir:
         print('Using generic initial guess for QFM surface.')
         runs = 1
         while runs < qfm_max_tries:
-            qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
+            qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume, outdir=outdir, stellID=stellID)
+            paramsInit = qfm.ParamsInit(ma)
+            qfm_full = qfm.DetermineFull(paramsInit)
             
-            objective = qfm.quadratic_flux
-            d_objective = qfm.d_quadratic_flux
-        
-            paramsInitR = np.zeros((qfm.mnmax))
-            paramsInitZ = np.zeros((qfm.mnmax))
-            
-            approx_plasma_minor_radius = 1/np.pi*np.sqrt(volume/2/magnetic_axis_radius) #Minor radius of a torus
-            paramsInitR[(qfm.xm==1)*(qfm.xn==0)] = approx_plasma_minor_radius
-            paramsInitZ[(qfm.xm==1)*(qfm.xn==0)] = -1*approx_plasma_minor_radius
-
-            paramsInit = np.hstack((paramsInitR[1::],paramsInitZ))
-
-            optimizer = GradOptimizer(nparameters=len(paramsInit),outdir=outdir,stellID=stellID)
-            optimizer.add_objective(objective,d_objective,1)
-        
             print('Beginning QFM surface optimization - attempt %d.'%runs)
-            if package=='scipy':
-                xopt, fopt, result = optimizer.optimize(paramsInit,package=package,method=method,options={'gtol':gtol,'disp':False})
-                success = (result == 0) or (result == 2)
-            else:
-                (xopt, fopt, result) = optimizer.optimize(paramsInit,ftol_abs=ftol_abs,ftol_rel=ftol_rel,xtol_abs=xtol_abs,xtol_rel=xtol_rel,package=package,method=method)
-                success = result >= 0
-            if (success):
+            try:
+                fopt = qfm.qfm_metric(paramsInit=paramsInit,full=qfm_full)
+                xopt = qfm.paramsPrev
+                success = True
                 if args.saveQFM:
-                    optimizer.saveGradOptInfo()
-                    np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[QfmSurface.volume]) #Overwrite old file if this portion of the code runs.
+                    qfm.SaveState()
+                    np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[qfm.volume_target]) #Overwrite old file if this portion of the code runs.
                 break
-            else:
+            except RuntimeError:
                 print('Optimization for given volume failed.')
                 volume = volume/2
                 runs += 1 
         if not (success):
             print('QFM surface not found!')
             quit()
-    else
+    else:
         print('Loading QFM surface from xopt file.')
+        qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume, outdir=outdir, stellID=stellID)
         xopt = old_xopt
-        qfm = QfmSurface(mmax, nmax, nfp, stellarator, ntheta, nphi, volume)
+        qfm_full = qfm.DetermineFull(old_xopt)
     print('Final QFM surface volume: ', volume)
     
-    R,Z = qfm.position(xopt) # R and Z for the surface over ONE field period
+    R,Z = qfm.position(xopt,full=qfm_full) # R and Z for the surface over ONE field period
     X,Y = qfm.Cyl_to_Cart(R) # X and Y for the surface over ONE field period
 
     # Create boundary.txt file
-    Rbc, Zbs, xn, xm = qfm.ft_surface(params=xopt,mmax=mmax,nmax=nmax,outdir=outdir)
+    Rbc, Zbs, xn, xm = qfm.ft_surface(params=xopt,mmax=mmax,nmax=nmax,outdir=outdir,full=qfm_full)
 
     # Save Poincare plot with QFM surface.
     if not args.noPoincare:
@@ -284,18 +244,22 @@ for sourceitem in args.sourcedir:
             data3[:, 2*i+0] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 0]
             data3[:, 2*i+1] = rphiz[i, range(3*spp//(nfp*4), nperiods*spp, spp), 2]
 
-        #plt.figure()
-        fig,ax = plt.subplots()
+        fig_w_qfm,ax_w_qfm = plt.subplots()
+        fig_w_vmec,ax_w_vmec = plt.subplots()
         for i in range(nparticles):
-            ax.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) 
+            ax_w_qfm.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) 
+            ax_w_vmec.scatter(rphiz[i, range(0, nperiods*spp, spp), 0], rphiz[i, range(0, nperiods*spp, spp), 2], s=marker_size, marker=marker_symbol, linewidth=1) 
         Ruse = np.append(R,np.reshape(R[:,0],(R.shape[0],1)),axis=1)
         Zuse = np.append(Z,np.reshape(Z[:,0],(Z.shape[0],1)),axis=1)
-        ax.plot(Ruse[0,:],Zuse[0,:])
-        ax.set_aspect('equal','box') 
-        ax.set_xlabel(r'$R$ (m)')
-        ax.set_ylabel(r'$Z$ (m)')
-        fig.savefig(str(pl.Path(outdir).joinpath(poincare_plot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight',dpi=400)
-        print('Poincare plot created.')
+        ax_w_qfm.plot(Ruse[0,:],Zuse[0,:])
+        ax_w_qfm.set_aspect('equal','box') 
+        ax_w_qfm.set_xlabel(r'$R$ (m)')
+        ax_w_qfm.set_ylabel(r'$Z$ (m)')
+        ax_w_vmec.set_aspect('equal','box') 
+        ax_w_vmec.set_xlabel(r'$R$ (m)')
+        ax_w_vmec.set_ylabel(r'$Z$ (m)')
+        fig_w_qfm.savefig(str(pl.Path(outdir).joinpath(poincare_w_qfm_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight',dpi=400)
+        print('Poincare plots created.')
 
     # Load in coil and current information 
     Ncoils = (num_coils+contNum)*nfp*2 #Not true in general, but fine in our case
@@ -361,7 +325,7 @@ for sourceitem in args.sourcedir:
         print('MAKEGRID ran.')
 
     # Get estimate for VMEC's PHIEDGE parameter 
-    phi_edge = qfm.toroidal_flux(np.concatenate((Rbc[1:],Zbs))) #Looks odd, but this is how the function takes inputs. 
+    phi_edge = qfm.toroidal_flux(np.concatenate((Rbc,Zbs)),full=qfm_full)
 
     # Write the VMEC input.* script
     def list2str(invec):
@@ -460,6 +424,17 @@ for sourceitem in args.sourcedir:
         [phi_2d,theta_2d] = np.meshgrid(phi_grid,theta_grid)
 
         [X_vmec,Y_vmec,Z_vmec,R_vmec] = vmecOutput.position(isurf=-1,theta=theta_2d,zeta=phi_2d)
+        
+        R_switch = R_vmec.T
+        Z_switch = Z_vmec.T
+        Ruse = np.append(R_switch,np.reshape(R_switch[:,0],(R_switch.shape[0],1)),axis=1)
+        Zuse = np.append(Z_switch,np.reshape(Z_switch[:,0],(Z_switch.shape[0],1)),axis=1)
+        
+        ax_w_vmec.plot(Ruse[0,:],Zuse[0,:])
+        fig_w_vmec.savefig(str(pl.Path(outdir).joinpath(poincare_w_vmec_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight',dpi=400)
+
+        ax_w_qfm.plot(Ruse[0,:],Zuse[0,:])
+        fig_w_qfm.savefig(str(pl.Path(outdir).joinpath(poincare_w_both_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight',dpi=400)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')

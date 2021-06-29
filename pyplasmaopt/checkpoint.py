@@ -49,7 +49,7 @@ def Checkpoint(obj, iteration=0):
     np.savetxt(obj.outdir + "Jvals_individual.txt", obj.Jvals_individual)
 
     if obj.qfm_weight > obj.ignore_tol:
-        [obj.qfm_group[i].optimizer.saveGradOptInfo() for i in obj.stellList]
+        [obj.qfm_group[i].SaveState() for i in obj.stellList]
 
     if obj.tanMap:
         for i in obj.stellList:
