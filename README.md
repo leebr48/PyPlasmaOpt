@@ -41,4 +41,4 @@ To check the installation
 
     pytest tests/
 
-Note: To use the postprocessing script (`qfm.py`) you will need to download [ALPOpt][https://github.com/ejpaul/ALPOpt], then create a file in the same directory as `qfm.py` entitled `ALPOpt_dirs.txt`. In this file, paste a text string containing the absolute address of the ALPOpt directory, such as `/home/your_username/ALPOpt`. You will also need to install [STELLOPT][https://github.com/PrincetonUniversity/STELLOPT] as instructed in its repository.
+Note: To use the postprocessing script (`qfm.py`) you will need to download [ALPOpt](https://github.com/ejpaul/ALPOpt), then create a file in the same directory as `qfm.py` entitled `ALPOpt_dirs.txt`. In this file, paste a text string containing the absolute address of the ALPOpt directory, such as `/home/your_username/ALPOpt`. You will also need to install [STELLOPT](https://github.com/PrincetonUniversity/STELLOPT) as instructed in its repository.
