@@ -3,7 +3,6 @@ import scipy.integrate
 import scipy.interpolate
 from pyplasmaopt.biotsavart import BiotSavart
 from pyplasmaopt.logging import info
-import warnings #FIXME? 
 
 class TangentMap():
     def __init__(self, stellarator, magnetic_axis=None, rtol=1e-10, atol=1e-10,
@@ -135,7 +134,6 @@ class TangentMap():
 
         y0 = np.array([1,0,0,1])
         t_span = (0,2*np.pi)
-        warnings.filterwarnings("error",category=UserWarning) #FIXME?
         try:
             out = scipy.integrate.solve_ivp(self.rhs_fun,t_span,y0,
                                 vectorized=False,rtol=self.rtol,atol=self.atol,
@@ -144,9 +142,6 @@ class TangentMap():
                                            max_step=self.max_step)
         except ValueError:
             raise RuntimeError('solve_ivp failed due to a SciPy bug')
-        except UserWarning: #FIXME?
-            raise RuntimeError('solve_ivp failed due to convergence issues')
-        warnings.resetwarnings() #FIXME?
 
         if (out.status==0):
             return out.y, out.sol
@@ -370,11 +365,14 @@ class TangentMap():
             args = (axis_poly,)
         else:
             args = ()
-        out = scipy.integrate.solve_ivp(self.adjoint_rhs_fun,t_span,y0,
-                                vectorized=False,rtol=self.rtol,atol=self.atol,
-                                       t_eval=phi,args=args,dense_output=True,
-                                       method=self.method,min_step=self.min_step,
-                                       max_step=self.max_step)
+        try:
+            out = scipy.integrate.solve_ivp(self.adjoint_rhs_fun,t_span,y0,
+                                    vectorized=False,rtol=self.rtol,atol=self.atol,
+                                           t_eval=phi,args=args,dense_output=True,
+                                           method=self.method,min_step=self.min_step,
+                                           max_step=self.max_step)
+        except ValueError:
+            raise RuntimeError('solve_ivp failed due to a SciPy bug')
         if (out.status==0):
             return out.y, out.sol
         else:
@@ -1102,11 +1100,14 @@ class TangentMap():
 
             if (self.check_adjoint):
                 # Now check solution
-                out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
-                            vectorized=False,rtol=self.rtol,atol=self.atol,
-                                        t_eval=phi,dense_output=True,
-                                        method=self.method,
-                                        min_step=self.min_step,max_step=self.max_step)
+                try:
+                    out_check = scipy.integrate.solve_ivp(fun,(0,2*np.pi),out.sol(0),
+                                vectorized=False,rtol=self.rtol,atol=self.atol,
+                                            t_eval=phi,dense_output=True,
+                                            method=self.method,
+                                            min_step=self.min_step,max_step=self.max_step)
+                except ValueError:
+                    raise RuntimeError('solve_ivp failed due to a SciPy bug')
                 yend = out_check.sol(2*np.pi)
                 if self.verbose:
                     info(f'Residual in adjoint axis: {np.linalg.norm(out.sol(0)-yend)}')
@@ -1121,11 +1122,14 @@ class TangentMap():
             niter = 0
             y0 = y0[:,0]
             for niter in range(self.maxiter):
-                out = scipy.integrate.solve_ivp(fun,t_span,y0,
-                            vectorized=False,rtol=self.rtol,atol=self.atol,
-                                        t_eval=phi,dense_output=True,
-                                        method=self.method,min_step=self.min_step,
-                                        max_step=self.max_step)
+                try:
+                    out = scipy.integrate.solve_ivp(fun,t_span,y0,
+                                vectorized=False,rtol=self.rtol,atol=self.atol,
+                                            t_eval=phi,dense_output=True,
+                                            method=self.method,min_step=self.min_step,
+                                            max_step=self.max_step)
+                except ValueError:
+                    raise RuntimeError('solve_ivp failed due to a SciPy bug')
                 yend = out.sol(2*np.pi)
                 if (self.verbose):
                     info(f'Norm: {np.linalg.norm(yend-y0)}')
@@ -1189,11 +1193,14 @@ class TangentMap():
             t_span = (0,2*np.pi)
             niter = 0
             for niter in range(self.maxiter):
-                out = scipy.integrate.solve_ivp(self.rhs_fun_axis,t_span,y0,
-                            vectorized=False,rtol=self.rtol,atol=self.atol,
-                                        t_eval=phi,dense_output=True,
-                                        method=self.method,
-                                        min_step=self.min_step,max_step=self.max_step)
+                try:
+                    out = scipy.integrate.solve_ivp(self.rhs_fun_axis,t_span,y0,
+                                vectorized=False,rtol=self.rtol,atol=self.atol,
+                                            t_eval=phi,dense_output=True,
+                                            method=self.method,
+                                            min_step=self.min_step,max_step=self.max_step)
+                except ValueError:
+                    raise RuntimeError('solve_ivp failed due to a SciPy bug')
                 yend = out.sol(2*np.pi)
                 if self.verbose:
                     info(f'Norm: {np.linalg.norm(yend-y0)}')
