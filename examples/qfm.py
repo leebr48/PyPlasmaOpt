@@ -134,10 +134,11 @@ for sourceitem in args.sourcedir:
 
     if args.outdir and len(args.sourcedir)==1: #For ease of programming, only allow special output folder when there is one input folder. 
         outdir = str(pl.Path.cwd().joinpath(args.outdir).resolve())
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
     else:
         outdir = str(pl.Path(sourcedir).joinpath(out_subdir_name))
+    
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
 
     Nt_ma = int(var_assign('Nt_ma',args.Nt_ma))
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
