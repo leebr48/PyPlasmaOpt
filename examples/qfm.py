@@ -100,16 +100,16 @@ parser.add_argument("--ntheta", type=int, default=None)
 parser.add_argument("--nphi", type=int, default=None)
 parser.add_argument("--maj_rad", type=float, default=None)
 parser.add_argument("--min_rad", type=float, default=None)
+parser.add_argument("--stellID", type=int, default=0)
+parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
+parser.add_argument("--saveQFM", action='store_true', required=False, default=False)
+parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
 parser.add_argument("--noPoincare", action='store_true', required=False, default=False) # These options shut down parts of the code, which run in the given order. 
 parser.add_argument("--noMAKEGRID", action='store_true', required=False, default=False)
 parser.add_argument("--noVMEC", action='store_true', required=False, default=False)
 parser.add_argument("--noCompare", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozRun", action='store_true', required=False, default=False)
 parser.add_argument("--noBoozProc", action='store_true', required=False, default=False)
-parser.add_argument("--stellID", type=int, default=0)
-parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
-parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
-parser.add_argument("--saveQFM", action='store_true', required=False, default=False)
 args = parser.parse_args() 
 
 def var_assign(load,arg):
@@ -151,11 +151,17 @@ for sourceitem in args.sourcedir:
     min_rad = float(var_assign('min_rad',args.min_rad))
     stellID = args.stellID
     oldFormat = args.oldFormat
+   
+    old_xopt = []
     try:
-        old_xopt = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
-        volume = np.loadtxt(str(pl.Path(sourcedir).joinpath('qfm_volume.txt')))
+        old_vol = np.loadtxt(str(pl.Path(sourcedir).joinpath('qfm_volume.txt')))
+        if volume == old_vol:
+            try:
+                old_xopt = np.loadtxt(str(pl.Path(sourcedir).joinpath('xopt_{:}.txt'.format(args.stellID))))
+            except:
+                pass
     except:
-        old_xopt = []
+        pass
 
     print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 

@@ -129,7 +129,7 @@ setup(
     name='PlasmaOpt',
     long_description='',
     ext_modules=ext_modules,
-    install_requires=['pybind11>=2.4', 'sympy', 'property_manager3', 'numpy', 'scipy', 'argparse', 'mpi4py', 'matplotlib', 'randomgen', 'plotly','kaleido','nlopt','pathlib','h5py','xarray'],
+    install_requires=['pybind11>=2.4', 'sympy', 'property_manager3', 'numpy', 'scipy', 'argparse', 'mpi4py', 'matplotlib', 'randomgen', 'plotly','kaleido','nlopt','pathlib','h5py','xarray','f90nml','scanf','numba'],
     setup_requires=['pybind11>=2.4'],
     cmdclass={'build_ext': BuildExt},
     packages = ["pyplasmaopt"],
