@@ -64,6 +64,7 @@ booz_QAplot_name = 'booz_QA_plot'
 #####################################################################################################################
 
 # Load packages
+import pyplasmaopt as ppo
 from pyplasmaopt import *
 import numpy as np
 from scipy.io import netcdf
@@ -75,7 +76,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D 
 from coilpy import * 
 import subprocess as sp
-with open(str(pl.Path.cwd().joinpath('ALPOpt_dir.txt')),'r') as f:
+ppo_path = os.path.dirname(ppo.__file__)
+with open(str(pl.Path(ppo_path).joinpath('ALPOpt_dir.txt')),'r') as f:
         ALPOpt_dir = f.read().strip()
 sys.path.append(ALPOpt_dir)
 from vmec_input import init_modes 
