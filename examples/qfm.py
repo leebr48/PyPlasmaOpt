@@ -6,6 +6,7 @@ This all is then fed into VMEC and BOOZXFORM.
 
 # Options
 ## All
+out_subdir_name = 'postproc'
 image_filetype = 'pdf' #Choose something that MatPlotLib can handle. 
 font_size = 18
 ## Poincare plot
@@ -136,7 +137,7 @@ for sourceitem in args.sourcedir:
         if not os.path.exists(outdir):
             os.mkdir(outdir)
     else:
-        outdir = sourcedir
+        outdir = str(pl.Path(sourcedir).joinpath(out_subdir_name))
 
     Nt_ma = int(var_assign('Nt_ma',args.Nt_ma))
     Nt_coils = int(var_assign('Nt_coils',args.Nt_coils))
