@@ -100,7 +100,6 @@ parser.add_argument("--mmax", type=int, default=None)
 parser.add_argument("--nmax", type=int, default=None)
 parser.add_argument("--ntheta", type=int, default=None)
 parser.add_argument("--nphi", type=int, default=None)
-parser.add_argument("--maj_rad", type=float, default=None)
 parser.add_argument("--min_rad", type=float, default=None)
 parser.add_argument("--stellID", type=int, default=0)
 parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
@@ -149,7 +148,6 @@ for sourceitem in args.sourcedir:
     nmax = int(var_assign('nmax',args.nmax))
     ntheta = int(var_assign('ntheta',args.ntheta))
     nphi = int(var_assign('nphi',args.nphi))
-    maj_rad = float(var_assign('maj_rad',args.maj_rad))
     min_rad = float(var_assign('min_rad',args.min_rad))
     stellID = args.stellID
     oldFormat = args.oldFormat
@@ -231,7 +229,6 @@ for sourceitem in args.sourcedir:
             except ValueError:
                 max_thickness = max_thickness/2
                 delta = delta/2
-                #rphiz, xyz, absB, phi_no_mod = compute_field_lines(bs, nperiods=nperiods, batch_size=batch_size, magnetic_axis_radius=magnetic_axis_radius, max_thickness=max_thickness, delta=delta, steps_per_period=spp)
                 runs += 1
                 print('Poincare plotting failed - rerunning with new parameters.')
                 continue
