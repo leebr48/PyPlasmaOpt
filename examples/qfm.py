@@ -295,7 +295,7 @@ for sourceitem in args.sourcedir:
     for icoil in range(Ncoils):
         groups.append(icoil % int(Ncoils/(2*nfp)))
         names.append('Mod_'+str(groups[icoil]))
-        
+    
     coilObject = coils.Coil(xx,yy,zz,currents,names,groups)
 
     # Make the coils.* file for VMEC
