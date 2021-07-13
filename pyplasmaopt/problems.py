@@ -47,6 +47,7 @@ class NearAxisQuasiSymmetryObjective():
         self.seed = seed
         self.ma_group = mas
         self.res_axis_weight = res_axis_weight #Extra weight for the res_axis terms in the tanMap
+        self.qs_N = qs_N
         self.biotsavart_group = [BiotSavart(self.stellarator_group[i].coils, self.stellarator_group[i].currents) for i in stellList] 
         for i in stellList:
             self.biotsavart_group[i].set_points(self.ma_group[i].gamma)
