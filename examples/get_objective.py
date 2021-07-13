@@ -101,7 +101,7 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_ma.txt')),[args.Nt_ma])
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_coils.txt')),[args.Nt_coils])
     np.savetxt(str(pl.Path(outdir).joinpath('num_coils.txt')),[args.num_coils])
-    np.savetxt(str(pl.Path(outdir).joinpath('contNum.txt')),[args.contNum + args.newCont])
+    np.savetxt(str(pl.Path(outdir).joinpath('contNum.txt')),[args.contNum])
     np.savetxt(str(pl.Path(outdir).joinpath('mmax.txt')),[args.mmax]) 
     np.savetxt(str(pl.Path(outdir).joinpath('nmax.txt')),[args.nmax])
     np.savetxt(str(pl.Path(outdir).joinpath('nfp.txt')),[args.nfp])

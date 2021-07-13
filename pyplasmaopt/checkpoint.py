@@ -43,6 +43,11 @@ def Checkpoint(obj, iteration=0):
         save2 = obj.calc_iotas[i]
         np.savetxt(str(pl.Path(obj.outdir).joinpath('iota_ma_%d.txt'%i)), [save2],fmt='%.20f')
 
+    np.savetxt(obj.outdir + "Jvals.txt", obj.Jvals)
+    np.savetxt(obj.outdir + "dJvals.txt", obj.dJvals)
+    np.savetxt(obj.outdir + "xiterates.txt", obj.xiterates)
+    np.savetxt(obj.outdir + "Jvals_individual.txt", obj.Jvals_individual)
+
     if obj.qfm_weight > obj.ignore_tol:
         [obj.qfm_group[i].SaveState() for i in obj.stellList]
 

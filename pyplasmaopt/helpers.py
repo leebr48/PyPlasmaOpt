@@ -139,11 +139,9 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=25, ppp=10, copies=1, contNum=0, contRad=1.
     else:
         total_control_coils = 0
 
-    # Set currents
-    #Bc = 0 #FIXME?
+    # Set currents 
     if contNum > 0:
-        cont_coil_current = ControlCoilCurrent(1.492, total_control_coils, Bc) #FIXME?
-        #cont_coil_current = 0 #FIXME?
+        cont_coil_current = ControlCoilCurrent(1.492, total_control_coils, Bc)
     else:
         Bc = 0
     currents_part = [c/1.474*(1-Bc) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]] # normalise to get a magnetic field of around 1 on the axis
@@ -289,8 +287,7 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_co
             CC = ControlCoil(points)
             CC.set_dofs([R0,phi,zc,phi+np.pi/2,np.pi/2,contRad])
             coils.append(CC)
-        new_currents = []
-        #Bc = 0 #FIXME?
+        new_currents = [] 
         for i in range(copies):
             tot_old_current = np.sum(currents[i])
             currents_part = [(1-Bc)*current for current in currents[i]]
