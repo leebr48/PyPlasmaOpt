@@ -33,11 +33,11 @@ vertical_grid_points = 201 #MAKEGRID setting
 ## VMEC  
 vmec_output_file = 'VMEC_output.txt'
 vmec_DELT = 9.00E-01 #This is typically 0.7-0.9 and may have to be tweaked to make runs converge properly.
-vmec_NITER = 5000
+vmec_NITER = 10000
 vmec_NSTEP = 200
 vmec_TCON0 = 2.00E+00
-vmec_NS_ARRAY = '9 29 49 99' #NOTE: could change first number to 3 VMEC is being difficult (but not preferred)
-vmec_FTOL_ARRAY = '1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12' #NOTE: could change first number to 1E-5 if VMEC is being difficult (but not preferred)
+vmec_NS_ARRAY = '3 9 29 49 99'
+vmec_FTOL_ARRAY = '1.000000E-05 1.000000E-06 1.000000E-08 1.000000E-10 1.000000E-12'
 vmec_LASYM = 'F'
 #vmec_MPOL is set with an argument below
 vmec_NTOR = 6
@@ -80,7 +80,7 @@ ppo_path = os.path.dirname(ppo.__file__)
 with open(str(pl.Path(ppo_path).joinpath('ALPOpt_dir.txt')),'r') as f:
         ALPOpt_dir = f.read().strip()
 sys.path.append(ALPOpt_dir)
-from vmec_input import init_modes 
+#from vmec_input import init_modes #FIXME
 from vmec_output import VmecOutput
 
 plt.rcParams['font.size'] = str(font_size)
@@ -303,12 +303,20 @@ for sourceitem in args.sourcedir:
     coilObject.save_makegrid(str(pl.Path(outdir).joinpath(coils_file_name)),nfp=nfp)
 
     # Make the infile for MAKEGRID 
-    R_arr = np.sqrt(np.array(xx)**2 + np.array(yy)**2)
-    Z_arr = np.array(zz)
-    R_min = np.min(R_arr)
-    R_max = np.max(R_arr)
-    Z_min = np.min(Z_arr)
-    Z_max = np.max(Z_arr)
+    def extend(arr, factr=0.1):
+        smaller = np.min(arr)
+        larger = np.max(arr)
+
+        diff = larger - smaller
+        add = factr * diff
+        
+        newSmaller = smaller - add
+        newLarger = larger + add
+
+        return newSmaller, newLarger
+
+    R_min, R_max = extend(R)
+    Z_min, Z_max = extend(Z)
 
     with open(str(pl.Path(outdir).joinpath(makegrid_input_file)),'w') as f:
         f.write(coils_file_suffix+' ! coils.* file suffix\n')
@@ -403,12 +411,18 @@ for sourceitem in args.sourcedir:
         iota_full[0:-1] = (vmecOutput.iota[0:-1]+vmecOutput.iota[1::])*0.5
         iota_full[-1] = 1.5*vmecOutput.iota[-1]-0.5*vmecOutput.iota[-2]
 
+        V_vmec = 4*np.pi**2/vmecOutput.ns_half*np.cumsum(vmecOutput.vp) #FIXME
+
         iota_pyplasmaopt = -1*np.loadtxt(str(pl.Path(sourcedir).joinpath('iota_ma_%d.txt'%stellID))) #VMEC and PyPlasmaOpt define iota differently, hence the negative sign.
 
+        volume_xlabel = r'Plasma Volume $\mathrm{\left(m^{3}\right)}$'
+
         plt.figure()
-        plt.plot(vmecOutput.s_full[1::],iota_full)
+        #plt.plot(vmecOutput.s_full[1::],iota_full) #FIXME
+        plt.plot(V_vmec,iota_full) #FIXME
         plt.axhline(iota_pyplasmaopt,linestyle='--')
-        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        #plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$') #FIXME
+        plt.xlabel(volume_xlabel) #FIXME
         plt.ylabel(r'$\iota$')
         plt.legend(['VMEC','PyPlasmaOpt'])
         plt.savefig(str(pl.Path(outdir).joinpath(iota_compare_fig_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
@@ -486,7 +500,7 @@ for sourceitem in args.sourcedir:
 
         f = netcdf.netcdf_file(filename,mode='r',mmap=False)
         phi_b = f.variables['phi_b'][()]
-        ns_b = f.variables['ns_b'][()]
+        #ns_b = f.variables['ns_b'][()] #FIXME
         nfp_b = f.variables['nfp_b'][()]
         ixn_b = f.variables['ixn_b'][()]
         ixm_b = f.variables['ixm_b'][()]
@@ -498,7 +512,9 @@ for sourceitem in args.sourcedir:
 
         fig = plt.figure()
 
-        s = (jlist-1.5)/(ns_b-1.0)
+        #s = (jlist-1.5)/(ns_b-1.0) #FIXME
+
+        V_vmec_booz = [V_vmec[i-2] for i in jlist] #FIXME this is almost surely wrong...
 
         backgroundColor='b'
         QAColor=[0,0.7,0]
@@ -509,19 +525,23 @@ for sourceitem in args.sourcedir:
 
         for imode in range(nmodes): # First, plot just the 1st mode of each type, so the legend looks nice.
             if ixn_b[imode]==0 and ixm_b[imode]==0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=backgroundColor,label=r'$m = 0, n = 0$ (Background)')
+                #plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=backgroundColor,label=r'$m = 0, n = 0$ (Background)') #FIXME
+                plt.semilogy(V_vmec_booz,abs(bmnc_b[:,imode])/scale_factor, color=backgroundColor,label=r'$m = 0, n = 0$ (Background)') #FIXME
                 break
         for imode in range(nmodes):
             if ixn_b[imode]==0 and ixm_b[imode]!=0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=QAColor,label=r'$m \ne 0, n = 0$ (Quasiaxisymmetric)')
+                #plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=QAColor,label=r'$m \ne 0, n = 0$ (Quasiaxisymmetric)') #FIXME
+                plt.semilogy(V_vmec_booz,abs(bmnc_b[:,imode])/scale_factor, color=QAColor,label=r'$m \ne 0, n = 0$ (Quasiaxisymmetric)') #FIXME
                 break
         for imode in range(nmodes):
             if ixn_b[imode]!=0 and ixm_b[imode]==0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mirrorColor,label=r'$m = 0, n \ne 0$ (Mirror)')
+                #plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mirrorColor,label=r'$m = 0, n \ne 0$ (Mirror)') #FIXME
+                plt.semilogy(V_vmec_booz,abs(bmnc_b[:,imode])/scale_factor, color=mirrorColor,label=r'$m = 0, n \ne 0$ (Mirror)') #FIXME
                 break
         for imode in range(nmodes):
             if ixn_b[imode]!=0 and ixm_b[imode]!=0:
-                plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)')
+                #plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)') #FIXME
+                plt.semilogy(V_vmec_booz,abs(bmnc_b[:,imode])/scale_factor, color=helicalColor,label=r'$m \ne 0, n \ne 0$ (Helical)') #FIXME
                 break
         plt.legend(fontsize=9,loc='best')
         for imode in range(nmodes):
@@ -539,9 +559,11 @@ for sourceitem in args.sourcedir:
                     mycolor = mirrorColor
                 else:
                     mycolor = helicalColor
-            plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mycolor)
+            #plt.semilogy(s,abs(bmnc_b[:,imode])/scale_factor, color=mycolor) #FIXME
+            plt.semilogy(V_vmec_booz,abs(bmnc_b[:,imode])/scale_factor, color=mycolor) #FIXME
 
-        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        #plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$') #FIXME
+        plt.xlabel(volume_xlabel) #FIXME
         plt.title(r'Fourier Harmonics of $|B|$ in Boozer Coordinates')
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_harmonicsplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
@@ -558,9 +580,11 @@ for sourceitem in args.sourcedir:
             # Normalize by total sum
             QA_metric[index] = np.sqrt(summed_nonQA/summed_total)
             
-        plt.plot(s,QA_metric,marker='o')
-        plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$')
+        #plt.plot(s,QA_metric,marker='o') #FIXME
+        plt.semilogy(V_vmec_booz,QA_metric,marker='o') #FIXME
+        #plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$') #FIXME
+        plt.xlabel(volume_xlabel) #FIXME
         plt.ylabel('QA Metric')
-        plt.ylim(bottom=0)
+        #plt.ylim(bottom=0) #FIXME
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')
