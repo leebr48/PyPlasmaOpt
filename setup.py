@@ -89,7 +89,7 @@ class BuildExt(build_ext):
     """A custom build extension for adding compiler-specific options."""
     c_opts = {
         'msvc': ['/EHsc'],
-        'unix': ['-march=native', '-O3'],
+        'unix': [],
     }
     l_opts = {
         'msvc': [],
@@ -129,7 +129,7 @@ setup(
     name='PlasmaOpt',
     long_description='',
     ext_modules=ext_modules,
-    install_requires=['pybind11>=2.4', 'sympy', 'property_manager3', 'numpy', 'scipy', 'argparse', 'mpi4py', 'matplotlib', 'randomgen'],
+    install_requires=['pybind11>=2.4', 'sympy', 'property_manager3', 'numpy', 'scipy', 'argparse', 'mpi4py', 'matplotlib', 'randomgen', 'plotly','kaleido','nlopt','pathlib','h5py','xarray','f90nml','scanf','numba'],
     setup_requires=['pybind11>=2.4'],
     cmdclass={'build_ext': BuildExt},
     packages = ["pyplasmaopt"],
@@ -137,4 +137,3 @@ setup(
     package_data={'pyplasmaopt': ['data/*', 'data/ncsx/*']},
     include_package_data=True,
     zip_safe=False,
-)
