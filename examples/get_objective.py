@@ -36,8 +36,8 @@ def get_objective():
     parser.add_argument("--stellID", type=int, default=-1) 
     parser.add_argument("--iter", type=int, default=100000)
     parser.add_argument("--Taylor", action='store_true', default=False)
-    parser.add_argument("--maj_rad", type=float, default=1.4)
-    parser.add_argument("--min_rad", type=float, default=0.33) # Minor radius of coils, not plasma 
+    parser.add_argument("--maj_rad", type=float, default=1.5) # Based (approximately) on NCSX
+    parser.add_argument("--min_rad", type=float, default=0.815) # Minor radius of coils, not plasma; default value based (approximately) on NCSX
     parser.add_argument("--qfm_vol", type=float, default=2.959) # target volume
     parser.add_argument("--mmax", type=int, default=3) # maximum poloidal mode number for surface
     parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
@@ -49,6 +49,7 @@ def get_objective():
     parser.add_argument("--mag", type=float, default=0.05) # Perturbation (kick) magnitude
     parser.add_argument("--z0factr", type=float, default=4) # Additional perturbation in the z direction
     parser.add_argument("--contRad", type=float, default=1.3)
+    parser.add_argument("--N", type=int, default=0) # 0 for QA, 1 for QH
     parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
     args = parser.parse_args()
 
@@ -96,6 +97,7 @@ def get_objective():
         iota_target = [args.iota_targ]
     
     num_stell = len(iota_target)
+    qs_N = args.N * args.nfp
 
     np.savetxt(str(pl.Path(outdir).joinpath('ppp.txt')),[args.ppp])
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_ma.txt')),[args.Nt_ma])
@@ -174,5 +176,5 @@ def get_objective():
         iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, nfp=args.nfp, 
         qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, qfm_volume=args.qfm_vol, 
         ntheta=args.ntheta, nphi=args.nphi, xopt_rld=xopt_rld,
-        renorm=args.renorm, image_freq=args.image)
+        renorm=args.renorm, image_freq=args.image, qs_N=qs_N)
     return obj, args
