@@ -278,7 +278,7 @@ class NearAxisQuasiSymmetryObjective():
             self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - self.qs_N - iota_target[i])**2 for i in self.stellList])
             self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - self.qs_N - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList]))
             self.dresma     += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - self.qs_N - iota_target[i]) * qsf_group[i].diota_by_dcoeffs[:,0] for i in self.stellList]))
-            self.calc_iotas = [qsf_group[i].iota for i in self.stellList]
+            self.calc_iotas = [qsf_group[i].iota - self.qs_N for i in self.stellList]
         else:
             tanMap_iota = [tanMap_group[i].compute_iota() for i in self.stellList]
             self.calc_iotas = tanMap_iota
