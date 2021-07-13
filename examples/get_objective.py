@@ -36,8 +36,8 @@ def get_objective():
     parser.add_argument("--stellID", type=int, default=-1) 
     parser.add_argument("--iter", type=int, default=100000)
     parser.add_argument("--Taylor", action='store_true', default=False)
-    parser.add_argument("--maj_rad", type=float, default=1.4)
-    parser.add_argument("--min_rad", type=float, default=0.33) # Minor radius of coils, not plasma 
+    parser.add_argument("--maj_rad", type=float, default=1.5) # Based (approximately) on NCSX
+    parser.add_argument("--min_rad", type=float, default=0.815) # Minor radius of coils, not plasma; default value based (approximately) on NCSX
     parser.add_argument("--qfm_vol", type=float, default=2.959) # target volume
     parser.add_argument("--mmax", type=int, default=3) # maximum poloidal mode number for surface
     parser.add_argument("--nmax", type=int, default=3) # maximum toroidal mode number for surface
