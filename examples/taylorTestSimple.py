@@ -69,6 +69,10 @@ x = obj.x0
 obj.update(x)
 obj.callback(x)
 
+
+taylor_test(obj, x, nrando=3) #FIXME remove? Or keep, actually?
+
+
 maxiter = args.iter
 memory = 200
 maxfun = args.iter * 100 

@@ -49,6 +49,7 @@ def get_objective():
     parser.add_argument("--mag", type=float, default=0.05) # Perturbation (kick) magnitude
     parser.add_argument("--z0factr", type=float, default=4) # Additional perturbation in the z direction
     parser.add_argument("--contRad", type=float, default=1.3)
+    parser.add_argument("--N", type=int, default=0) # 0 for QA, 1 for QH
     parser.add_argument("--oldFormat", action='store_true', required=False, default=False) # Included for backwards compatibility operation in the reload_stell function
     args = parser.parse_args()
 
@@ -96,6 +97,7 @@ def get_objective():
         iota_target = [args.iota_targ]
     
     num_stell = len(iota_target)
+    qs_N = args.N * args.nfp
 
     np.savetxt(str(pl.Path(outdir).joinpath('ppp.txt')),[args.ppp])
     np.savetxt(str(pl.Path(outdir).joinpath('Nt_ma.txt')),[args.Nt_ma])
@@ -174,5 +176,5 @@ def get_objective():
         iota_weight=args.iota_wt, quasisym_weight=args.QS_wt, nfp=args.nfp, 
         qfm_weight=args.QFM_wt, mmax=args.mmax, nmax=args.nmax, qfm_volume=args.qfm_vol, 
         ntheta=args.ntheta, nphi=args.nphi, xopt_rld=xopt_rld,
-        renorm=args.renorm, image_freq=args.image)
+        renorm=args.renorm, image_freq=args.image, qs_N=qs_N)
     return obj, args

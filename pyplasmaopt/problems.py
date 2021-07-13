@@ -273,7 +273,7 @@ class NearAxisQuasiSymmetryObjective():
 
         self.res3    = self.ma_length_weight * np.sum([0.5 * (1/magnetic_axis_length_targets[i])**2 * (J_axis_lengths[i].J() - magnetic_axis_length_targets[i])**2 for i in self.stellList])
         self.dresma += self.ma_length_weight * np.concatenate(([(1/magnetic_axis_length_targets[i])**2 * (J_axis_lengths[i].J()-magnetic_axis_length_targets[i]) * J_axis_lengths[i].dJ_by_dcoefficients() for i in self.stellList]))
-        
+
         if not self.tanMap:
             self.res4        = np.sum([0.5 * self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota-iota_target[i])**2 for i in self.stellList])
             self.dresetabar += np.concatenate(([self.iota_weight * (1/iota_target[i]**2) * (qsf_group[i].iota - iota_target[i]) * qsf_group[i].diota_by_detabar[:,0] for i in self.stellList])) 
