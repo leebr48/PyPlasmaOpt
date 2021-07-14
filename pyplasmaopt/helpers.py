@@ -244,7 +244,10 @@ def reload_stell(sourcedir,Nt_coils=25,Nt_ma=25,ppp=10,nfp=3,stellID=None,num_co
                     coil_data = [] # Reset data for individual coil
                     passed_initial = True
                 else:
-                    coil_data.append([float(element) for element in listofstr])
+                    try:
+                        coil_data.append([float(element) for element in listofstr])
+                    except UnboundLocalError:
+                        raise IOError('It appears the coil data is stored in the old format - try running with --oldFormat.')
         shaped_coil_data.append(coil_data) # Ensures the last line in the file is included 
     else:
         coil_data = np.loadtxt(os.path.join(sourcedir,'coilCoeffs.txt'))

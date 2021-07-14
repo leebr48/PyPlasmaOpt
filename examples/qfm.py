@@ -101,6 +101,7 @@ parser.add_argument("--nmax", type=int, default=None)
 parser.add_argument("--ntheta", type=int, default=None)
 parser.add_argument("--nphi", type=int, default=None)
 parser.add_argument("--min_rad", type=float, default=None)
+parser.add_argument("--N", type=int, default=0) # 0 for QA, 1 for QH
 parser.add_argument("--stellID", type=int, default=0)
 parser.add_argument("--MPOL", type=int, default=6) #11 is also a good choice 
 parser.add_argument("--saveQFM", action='store_true', required=False, default=False)
@@ -149,6 +150,7 @@ for sourceitem in args.sourcedir:
     ntheta = int(var_assign('ntheta',args.ntheta))
     nphi = int(var_assign('nphi',args.nphi))
     min_rad = float(var_assign('min_rad',args.min_rad))
+    N = int(var_assign('N',args.N))
     stellID = args.stellID
     oldFormat = args.oldFormat
    
@@ -163,6 +165,8 @@ for sourceitem in args.sourcedir:
     except:
         pass
 
+    assert N in [0,1], 'N must be 0 or 1.'
+    
     print('Processing {:}, stellID {:}'.format(sourcedir,str(stellID)))
 
     with open(str(pl.Path(outdir).joinpath('postprocess_source.txt')),'w') as f:
@@ -570,21 +574,30 @@ for sourceitem in args.sourcedir:
 
         plt.figure()
         QA_metric = np.zeros(len(jlist))
+        QH_metric = np.zeros(len(jlist)) #FIXME
         for index in range(len(jlist)):
             summed_total = 0
             summed_nonQA = 0
+            summed_nonQH = 0 #FIXME
             for imode in range(nmodes):
                 if ixn_b[imode]!=0:
                     summed_nonQA += bmnc_b[index,imode]**2
+                if ixm_b[imode]!=0: #FIXME
+                    summed_nonQH += bmnc_b[index,imode]**2 #FIXME
                 summed_total += bmnc_b[index,imode]**2
             # Normalize by total sum
             QA_metric[index] = np.sqrt(summed_nonQA/summed_total)
+            QH_metric[index] = np.sqrt(summed_nonQH/summed_total) #FIXME
             
         #plt.plot(s,QA_metric,marker='o') #FIXME
-        plt.semilogy(V_vmec_booz,QA_metric,marker='o') #FIXME
+        if N == 0: #FIXME
+            plt.semilogy(V_vmec_booz,QA_metric,marker='o') #FIXME
+            plt.ylabel('QA Metric')
+        elif N == 1: #FIXME
+            plt.semilogy(V_vmec_booz,QH_metric,marker='o') #FIXME
+            plt.ylabel('QH Metric') #FIXME
         #plt.xlabel(r'$\Psi_T/\Psi_T^{\mathrm{edge}}$') #FIXME
         plt.xlabel(volume_xlabel) #FIXME
-        plt.ylabel('QA Metric')
         #plt.ylim(bottom=0) #FIXME
 
         plt.savefig(str(pl.Path(outdir).joinpath(booz_QAplot_name+'_'+str(stellID)+'.'+image_filetype)),bbox_inches='tight')

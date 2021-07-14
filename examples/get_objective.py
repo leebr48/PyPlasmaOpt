@@ -113,6 +113,7 @@ def get_objective():
     np.savetxt(str(pl.Path(outdir).joinpath('min_rad.txt')),[args.min_rad])
     np.savetxt(str(pl.Path(outdir).joinpath('qfm_volume.txt')),[args.qfm_vol]) #This will be overwritten if the QFM surface is included in the optimization. 
     np.savetxt(str(pl.Path(outdir).joinpath('contRad.txt')),[args.contRad])
+    np.savetxt(str(pl.Path(outdir).joinpath('N.txt')),[args.N])
 
     xopt_rld = None
     coil_length_targets = None
